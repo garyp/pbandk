@@ -40,7 +40,7 @@
 - [X] Make sure maps are deserialized properly: null keys and null values should be replaced with default values
     - include unknown field decoding
 - [X] Refactor `FieldDescriptor` to split out a separate `FieldAccessor`
-- [ ] Update to Kotlin 1.8
+- [X] Update to Kotlin 1.8
 - [ ] Update JSON support to use unsigned int constructors for serialization library: https://github.com/Kotlin/kotlinx.serialization/pull/2160
 - [ ] Update to latest protobuf conformance tests
 - [ ] Figure out why `tvosX64()` tests fail to run
@@ -129,3 +129,43 @@ Operations:
 - encode/decode a field to binary protobuf
 - encode/decode a field to JSON protobuf
 - swap in different encode/decode implementations
+
+---
+
+The idea:
+- message instances are opaque (from pbandk's perspective) holders of data
+- all operations on a message instance delegate to the message descriptor to perform what's needed
+- pbandk code outside of the message descriptor never calls methods/properties on a method instance directly
+- `MessageValueType` implements _operations_ on messages, whereas `MessageDescriptor` contains methods to access the data in a message instance (e.g. field descriptors and field values)
+- `MessageValueType` can be a singleton (maybe?), where each operation takes a descriptor and a message instance
+- Under the hood:
+    - pbandk-generated messages inherit from `AbstractGeneratedMessage` (is it enough to say they inherit from `Message`?), which contains common properties such as `unknownFields` and `protoSize`
+    - `MessageValueType` accesses `protoSize` via `MessageDescriptor`, which knows about `AbstractGeneratedMessage.protoSize` and can return that
+    - `MessageValueType` doesn't care about the inheritance hierarchy of message instances (i.e. `T : Any`)
+    - `MessageDescriptor` on the other hand requires message instances to inherit from `Message` (i.e. `T : Message`)
+
+Data needed per message instance:
+- protoSize
+- hashCode
+
+Data needed per message type:
+- defaultInstance
+- list of fieldDescriptors
+
+Data needed per message implementation:
+- 
+
+Operations generic to any message implementation:
+- plus (aka protobuf message merge)
+- compute protoSize
+
+Operations needed per message implementation:
+- get value for a field descriptor
+- get list of unknown fields
+
+Operations needed by default pbandk message implementation:
+- compute hashCode
+- equals
+- toString
+
+

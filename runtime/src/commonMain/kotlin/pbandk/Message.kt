@@ -5,16 +5,28 @@ import pbandk.internal.binary.BinaryMessageEncoder
 import pbandk.internal.binary.allocate
 import pbandk.internal.binary.fromByteArray
 import pbandk.internal.types.MessageValueType
-import pbandk.internal.types.wkt.customJsonMappings
-import pbandk.types.ValueType
 
 public interface Message {
     public val unknownFields: Map<Int, UnknownField>
 
-    public val descriptor: MessageDescriptor<out Message>
+    @Deprecated(
+        message = "Use companion.valueType.descriptor instead",
+        replaceWith = ReplaceWith("companion.valueType.descriptor"),
+    )
+    public val descriptor: MessageDescriptor<out Message, *> get() = companion.valueType.descriptor
+
+    public val companion: Companion<out Message, *>
 
     public val protoSize: Int
 
+    /**
+     * Implements [protobuf merge semantics](https://protobuf.dev/programming-guides/encoding/#last-one-wins), similarly
+     * to [Java's `mergeFrom` method](https://protobuf.dev/reference/java/api-docs/com/google/protobuf/Message.Builder.html#mergeFrom-com.google.protobuf.Message-).
+     *
+     * Note that this is _not_ the same as applying the `plus` operator to individual fields within the message.
+     * Notably, numeric fields will not be added together and string fields will not be concatenated. Instead, the value
+     * of the numeric/string field in [other] will overwrite the value in this message.
+     */
     public operator fun plus(other: Message?): Message
 
     /**
@@ -25,24 +37,21 @@ public interface Message {
      * _MUST_ be a descriptor for fields in messages of type [M].
      */
     @ExperimentalProtoReflection
-    public fun <V> getFieldValue(fieldDescriptor: FieldDescriptor<*, V>): V
+    public fun <V> getFieldValue(fieldDescriptor: FieldDescriptor<*, *, V>): V
 
-    public abstract class Companion<M : Message> {
-        public abstract val descriptor: MessageDescriptor<M>
-
+    public abstract class Companion<M : Message, MM : MutableMessage<M>> {
         /**
          * Returns the default value for this message type. Can throw an exception if [M] is a message with `required`
          * fields, since such messages do not have a default value.
          */
-        public abstract val defaultInstance: M
+        @Deprecated(
+            message = "Use valueType.descriptor.defaultInstance instead",
+            replaceWith = ReplaceWith("valueType.descriptor.defaultInstance"),
+        )
+        @get:Throws(UnsupportedOperationException::class)
+        public val defaultInstance: M get() = valueType.descriptor.defaultInstance
 
-        @PublicForGeneratedCode
-        public val messageValueType: ValueType<M> by lazy {
-            customJsonMappings[this]?.let {
-                @Suppress("UNCHECKED_CAST")
-                it as? MessageValueType<M>
-            } ?: MessageValueType(this)
-        }
+        public abstract val valueType: MessageValueType<M, M>
     }
 
     public interface Enum {
@@ -68,33 +77,44 @@ public interface Message {
     }
 }
 
-@Export
-@JsName("encodeMessage")
-public fun <M : Message> M.encodeWith(m: MessageEncoder): Unit = m.writeMessage(this)
-
-@Export
-@JsName("decodeMessage")
-@Throws(InvalidProtocolBufferException::class)
-public fun <M : Message> Message.Companion<M>.decodeWith(m: MessageDecoder): M = m.readMessage(this)
+@Suppress("UNCHECKED_CAST")
+private inline val <M : Message> M.messageCompanion get() = companion as Message.Companion<M, *>
 
 /**
  * Encode this message to a ByteArray using the protocol buffer binary encoding.
  */
 @Export
-public fun <M : Message> M.encodeToByteArray(): ByteArray =
-    BinaryMessageEncoder.allocate(protoSize).also { encodeWith(it) }.toByteArray()
+public fun <M : Message> M.encodeToByteArray(): ByteArray = messageCompanion.valueType.encodeToByteArray(this)
+
+@Export
+public fun <M : Any> MessageValueType<M, *>.encodeToByteArray(message: M): ByteArray =
+    BinaryMessageEncoder.allocate(binarySize(message)).also {
+        it.writeMessage(message, this)
+    }.toByteArray()
 
 /**
  * Decode a binary protocol buffer message from [arr].
  */
 @Export
 @Throws(InvalidProtocolBufferException::class)
-public fun <M : Message> Message.Companion<M>.decodeFromByteArray(arr: ByteArray): M =
-    decodeWith(BinaryMessageDecoder.fromByteArray(arr))
+public fun <M : Message> Message.Companion<M, *>.decodeFromByteArray(arr: ByteArray): M =
+    valueType.decodeFromByteArray(arr)
+
+@Export
+@Throws(InvalidProtocolBufferException::class)
+public fun <M : Any> MessageValueType<M, *>.decodeFromByteArray(arr: ByteArray): M =
+    BinaryMessageDecoder.fromByteArray(arr).readMessage(this)
 
 @Suppress("UNCHECKED_CAST")
 @Export
 public operator fun <M : Message> M?.plus(other: M?): M? = this?.plus(other) as M? ?: other
+
+@Export
+public fun <M : Any> MessageValueType<M, *>.merge(m: M?, other: M?): M? = if (m != null && other != null) {
+    mergeValues(m, other)
+} else {
+    m ?: other
+}
 
 /**
  * Returns the value of the protocol buffer field from this message that is described by [fieldDescriptor]. If this

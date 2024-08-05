@@ -11,7 +11,7 @@ interface Platform {
     val stdout: Sink
     val stderr: Sink
 
-    suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T>): T?
+    suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T, *>): T?
     suspend fun <T : Message> stdoutWriteLengthDelimitedMessage(message: T)
 
     fun runBlockingMain(block: suspend CoroutineScope.() -> Unit)

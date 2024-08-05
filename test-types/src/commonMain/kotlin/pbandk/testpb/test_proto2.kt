@@ -37,7 +37,8 @@ public sealed interface MessageWithRequiredField : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.testpb.MessageWithRequiredField>() {
+    public companion object :
+        pbandk.Message.Companion<pbandk.testpb.MessageWithRequiredField, pbandk.testpb.MutableMessageWithRequiredField>() {
         override val defaultInstance: pbandk.testpb.MessageWithRequiredField
             get() = throw UnsupportedOperationException("Messages with required fields don't have a default instance")
 
@@ -225,7 +226,8 @@ public sealed interface MessageWithGroup : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.testpb.MessageWithGroup>() {
+    public companion object :
+        pbandk.Message.Companion<pbandk.testpb.MessageWithGroup, pbandk.testpb.MutableMessageWithGroup>() {
         override val defaultInstance: pbandk.testpb.MessageWithGroup by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.testpb.MessageWithGroup {}
         }

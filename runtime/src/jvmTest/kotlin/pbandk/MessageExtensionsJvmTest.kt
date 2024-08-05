@@ -57,7 +57,7 @@ class MessageExtensionsJvmTest {
         val javaMap = pbandk.testpb.java.Test.MessageWithMap.parseDelimitedFrom(input)
 
         // Ensure the two instances are equal to each other
-        pbandkJavaRoundtripTest(javaMap, pbMap, MessageWithMap)
+        pbandkJavaRoundtripTest(javaMap, pbMap, MessageWithMap.valueType)
     }
 
     @Test
@@ -75,6 +75,6 @@ class MessageExtensionsJvmTest {
         assertNotNull(pbFoo)
 
         // Ensure the two instances are equal to each other
-        pbandkJavaRoundtripTest(javaFoo, pbFoo, Foo)
+        pbandkJavaRoundtripTest(javaFoo, pbFoo, Foo.valueType)
     }
 }

@@ -1,13 +1,14 @@
 package pbandk
 
+import pbandk.internal.types.MessageValueType
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
 /** Generate a protobuf-java version of the proto and deserialize pbandk version and vice-versa */
-fun <T : Message> pbandkJavaRoundtripTest(
+fun <T : Any> pbandkJavaRoundtripTest(
     builtJavaObj: com.google.protobuf.Message,
     builtPbandkObj: T,
-    pbandkCompanion: Message.Companion<T>,
+    pbandkValueType: MessageValueType<T, *>,
     /**
      * Must the binary encodings of the protobuf-java and pbandk messages be byte-for-byte equivalent?
      * Normally this should be left at the default value of `true`.
@@ -15,12 +16,12 @@ fun <T : Message> pbandkJavaRoundtripTest(
     encodingsMustBeEqual: Boolean = true,
 ) {
     val builtJavaBytes = builtJavaObj.toByteArray()
-    val builtPbandkBytes = builtPbandkObj.encodeToByteArray()
+    val builtPbandkBytes = pbandkValueType.encodeToByteArray(builtPbandkObj)
 
     if (encodingsMustBeEqual) {
         assertEquals(
             builtJavaObj.serializedSize,
-            builtPbandkObj.protoSize,
+            pbandkValueType.binarySize(builtPbandkObj),
             "Serialized size did not match between pbandk and protobuf-java"
         )
         assertContentEquals(
@@ -31,7 +32,7 @@ fun <T : Message> pbandkJavaRoundtripTest(
     }
 
     val gendJavaObj = builtJavaObj.parserForType.parseFrom(builtPbandkBytes)
-    val gendPbandkObj = pbandkCompanion.decodeFromByteArray(builtJavaBytes)
+    val gendPbandkObj = pbandkValueType.decodeFromByteArray(builtJavaBytes)
     assertEquals(
         builtJavaObj,
         gendJavaObj,
@@ -44,13 +45,13 @@ fun <T : Message> pbandkJavaRoundtripTest(
     )
 
     assertEquals(
-        builtPbandkObj.protoSize,
-        gendPbandkObj.protoSize,
+        pbandkValueType.binarySize(builtPbandkObj),
+        pbandkValueType.binarySize(gendPbandkObj),
         "After decoding the protobuf-java-encoded object with pbandk, the size does not match the pbandk object's size"
     )
     assertContentEquals(
         builtPbandkBytes,
-        gendPbandkObj.encodeToByteArray(),
+        pbandkValueType.encodeToByteArray(gendPbandkObj),
         "Binary encoding was not byte-for-byte equivalent between pbandk and the pbandk-decoded, protobuf-java-encoded protobuf-java object"
     )
 }

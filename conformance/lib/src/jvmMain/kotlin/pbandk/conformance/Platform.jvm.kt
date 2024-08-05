@@ -24,7 +24,7 @@ private object JvmPlatform : Platform {
     override val stdout = System.out.asSink().buffered()
     override val stderr = System.err.asSink().buffered()
 
-    override suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T>): T? =
+    override suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T, *>): T? =
         withContext(Dispatchers.IO) {
             if (!stdin.request(4)) return@withContext null
             val size = stdin.readIntLe()

@@ -326,11 +326,8 @@ public sealed interface ConformanceRequest : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.conformance.pb.ConformanceRequest>() {
-        override val defaultInstance: pbandk.conformance.pb.ConformanceRequest by lazy(LazyThreadSafetyMode.PUBLICATION) {
-            pbandk.conformance.pb.ConformanceRequest {}
-        }
-
+    public companion object :
+        pbandk.Message.Companion<pbandk.conformance.pb.ConformanceRequest, MutableConformanceRequest>() {
         private val messageMetadata = pbandk.MessageMetadata(
             fullName = "conformance.ConformanceRequest",
             syntax = pbandk.wkt.Syntax.PROTO3,

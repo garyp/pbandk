@@ -50,7 +50,7 @@ public sealed interface Any : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.wkt.Any>() {
+    public companion object : pbandk.Message.Companion<pbandk.wkt.Any, pbandk.wkt.MutableAny>() {
         override val defaultInstance: pbandk.wkt.Any by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.wkt.Any {}
         }

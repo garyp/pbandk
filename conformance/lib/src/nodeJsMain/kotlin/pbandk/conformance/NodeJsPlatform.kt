@@ -35,7 +35,7 @@ internal abstract class NodeJsPlatform : Platform {
 
     abstract suspend fun <R> runHandlingJsExceptions(block: suspend () -> R): R
 
-    override suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T>): T? =
+    override suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T, *>): T? =
         runHandlingJsExceptions {
             if (!stdin.request(4)) return@runHandlingJsExceptions null
             val size = stdin.readIntLe()

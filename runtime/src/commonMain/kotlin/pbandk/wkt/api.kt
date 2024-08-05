@@ -80,7 +80,7 @@ public sealed interface Api : pbandk.Message {
                 value = pbandk.wkt.Api::version,
                 mutableValue = pbandk.wkt.MutableApi::version,
             )
-        public val sourceContext: pbandk.FieldDescriptor<pbandk.wkt.Api, pbandk.wkt.SourceContext?> =
+        public val sourceContext: pbandk.FieldDescriptor<pbandk.wkt.Api, pbandk.wkt.MutableApi, pbandk.wkt.SourceContext?> =
             pbandk.FieldDescriptor.ofOptional(
                 messageDescriptor = pbandk.wkt.Api::descriptor,
                 messageMetadata = pbandk.wkt.Api.messageMetadata,
@@ -89,7 +89,7 @@ public sealed interface Api : pbandk.Message {
                 valueType = pbandk.types.message(pbandk.wkt.SourceContext),
                 jsonName = "sourceContext",
                 value = pbandk.wkt.Api::sourceContext,
-                mutableValue = pbandk.wkt.MutableApi::sourceContext,
+                mutableValue = pbandk.wkt.MutableApi::sourceContext::set,
             )
         public val mixins: pbandk.FieldDescriptor.MutableValue<pbandk.wkt.Api, List<pbandk.wkt.Mixin>, MutableList<pbandk.wkt.Mixin>> =
             pbandk.FieldDescriptor.ofRepeated(

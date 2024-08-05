@@ -1,20 +1,25 @@
 package pbandk.internal.types.wkt
 
 import pbandk.InvalidProtocolBufferException
+import pbandk.MessageDescriptor
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.tryDecodeField
 import pbandk.internal.PlatformUtil
+import pbandk.internal.binary.BinaryFieldDecoder
+import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.types.MessageValueType
+import pbandk.internal.types.PbandkMessageValueType
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import pbandk.wkt.Duration
+import pbandk.wkt.MutableDuration
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
-internal object DurationNew : WktValueType<kotlin.time.Duration, Duration> {
-    override val companion = Duration
+internal object DurationNew : MessageValueType<kotlin.time.Duration, Duration>() {
+    override val descriptor = Duration.valueType.descriptor
 
     private val secondsField = Duration.FieldDescriptors.seconds
     private val nanosField = Duration.FieldDescriptors.nanos
@@ -36,33 +41,37 @@ internal object DurationNew : WktValueType<kotlin.time.Duration, Duration> {
         }
     }
 
-    override fun encodeToBinary(value: kotlin.time.Duration, encoder: BinaryFieldValueEncoder) {
+    override fun encodeFieldsToBinary(value: kotlin.time.Duration, fieldEncoder: BinaryFieldEncoder) {
         value.toComponents { seconds, nanoseconds ->
-            encoder.encodeLenFields(binarySize(value)) { fieldEncoder ->
-                secondsField.fieldType.encodeToBinary(secondsField.metadata, seconds, fieldEncoder)
-                nanosField.fieldType.encodeToBinary(nanosField.metadata, nanoseconds, fieldEncoder)
+            secondsField.fieldType.encodeToBinary(secondsField.metadata, seconds, fieldEncoder)
+            nanosField.fieldType.encodeToBinary(nanosField.metadata, nanoseconds, fieldEncoder)
+        }
+    }
+
+    override fun encodeToBinary(value: kotlin.time.Duration, encoder: BinaryFieldValueEncoder) {
+        encoder.encodeLenFields(binarySize(value)) { fieldEncoder -> encodeFieldsToBinary(value, fieldEncoder) }
+    }
+
+    override fun decodeFieldsFromBinary(fieldDecoder: BinaryFieldDecoder): kotlin.time.Duration {
+        var seconds = 0L
+        var nanoseconds = 0
+
+        fieldDecoder.forEachField { fieldNumber, valueDecoder ->
+            when {
+                valueDecoder.tryDecodeField(secondsField, fieldNumber) { seconds = it } -> {}
+                valueDecoder.tryDecodeField(nanosField, fieldNumber) { nanoseconds = it } -> {}
+                else -> valueDecoder.skipValue()
             }
         }
+
+        return seconds.seconds + nanoseconds.nanoseconds
     }
 
     override fun decodeFromBinary(decoder: BinaryFieldValueDecoder): kotlin.time.Duration {
         if (decoder !is BinaryFieldValueDecoder.Len) {
             throw InvalidProtocolBufferException("Unexpected wire type for message value: ${decoder.wireType}")
         }
-        return decoder.decodeFields { fieldDecoder ->
-            var seconds = 0L
-            var nanoseconds = 0
-
-            fieldDecoder.forEachField { fieldNumber, valueDecoder ->
-                when {
-                    valueDecoder.tryDecodeField(secondsField, fieldNumber) { seconds = it } -> {}
-                    valueDecoder.tryDecodeField(nanosField, fieldNumber) { nanoseconds = it } -> {}
-                    else -> valueDecoder.skipValue()
-                }
-            }
-
-            seconds.seconds.plus(nanoseconds.nanoseconds)
-        }
+        return decoder.decodeFields(::decodeFieldsFromBinary)
     }
 
     override fun encodeToJson(value: kotlin.time.Duration, encoder: JsonFieldValueEncoder) {
@@ -101,7 +110,9 @@ internal object DurationNew : WktValueType<kotlin.time.Duration, Duration> {
         throw UnsupportedOperationException("google.protobuf.Duration cannot be used as a map key")
 }
 
-internal object Duration : MessageValueType<Duration>(Duration) {
+internal class Duration(
+    descriptor: MessageDescriptor<Duration, MutableDuration>
+) : PbandkMessageValueType<Duration, MutableDuration>(descriptor) {
     override fun encodeToJson(value: Duration, encoder: JsonFieldValueEncoder) {
         encoder.encodeString(PlatformUtil.durationToString(value))
     }

@@ -37,6 +37,6 @@ class GroupTest {
                 }
             }
         }
-        pbandkJavaRoundtripTest(builtJavaObj, builtKotlinObj, MessageWithGroup.Companion)
+        pbandkJavaRoundtripTest(builtJavaObj, builtKotlinObj, MessageWithGroup.valueType)
     }
 }

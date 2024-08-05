@@ -19,8 +19,8 @@ public abstract class GeneratedMessage<M : Message>
 protected constructor(
     override val unknownFields: Map<Int, UnknownField> = emptyMap()
 ) : AbstractGeneratedMessage<M>() {
-    override val protoSize: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { computeProtoSize() }
-    private val _hashCode: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { computeHashCode() }
+    override val protoSize: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { super.protoSize }
+    private val _hashCode: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { super.hashCode() }
     override fun hashCode(): Int = _hashCode
 }
 
@@ -34,25 +34,25 @@ protected constructor(
 }
 
 // TODO: can this class be simplified or the need for it removed completely?
-private class ExtendableMessageFieldDescriptors<M : Message>(
+internal class ExtendableMessageFieldDescriptors<M : Any, MM : Any>(
     private val ordered: Boolean,
-    private val messageFieldDescriptors: FieldDescriptorSet<M>,
-    private val extensionFields: FieldSet<M>,
-) : Collection<FieldDescriptor<M, out Any?>> {
+    private val messageFieldDescriptors: FieldDescriptorSet<M, MM>,
+    private val extensionFields: FieldSet<M, MM>,
+) : Collection<FieldDescriptor<M, MM, out Any?>> {
     override val size: Int get() = messageFieldDescriptors.size + extensionFields.size
 
     override fun isEmpty(): Boolean = messageFieldDescriptors.isEmpty() && extensionFields.isEmpty()
 
-    override fun iterator(): Iterator<FieldDescriptor<M, out Any?>> = if (ordered) {
+    override fun iterator(): Iterator<FieldDescriptor<M, MM, out Any?>> = if (ordered) {
         FdOrderedIterator(messageFieldDescriptors.iterator(), extensionFields.iterator())
     } else {
         ConcatIterator(messageFieldDescriptors.iterator(), extensionFields.iterator())
     }
 
-    override operator fun contains(element: FieldDescriptor<M, out Any?>): Boolean =
+    override operator fun contains(element: FieldDescriptor<M, MM, out Any?>): Boolean =
         element in messageFieldDescriptors || element in extensionFields
 
-    override fun containsAll(elements: Collection<FieldDescriptor<M, out Any?>>): Boolean =
+    override fun containsAll(elements: Collection<FieldDescriptor<M, MM, out Any?>>): Boolean =
         elements.all { it in this }
 
     private class ConcatIterator<T>(
@@ -81,10 +81,10 @@ private class ExtendableMessageFieldDescriptors<M : Message>(
         }
     }
 
-    private class FdOrderedIterator<M : Message>(
-        private val fdIter1: Iterator<FieldDescriptor<M, out Any?>>,
-        private val fdIter2: Iterator<FieldDescriptor<M, out Any?>>,
-    ) : Iterator<FieldDescriptor<M, out Any?>> {
+    private class FdOrderedIterator<M : Any, MM : Any>(
+        private val fdIter1: Iterator<FieldDescriptor<M, MM, out Any?>>,
+        private val fdIter2: Iterator<FieldDescriptor<M, MM, out Any?>>,
+    ) : Iterator<FieldDescriptor<M, MM, out Any?>> {
         private var fd1 = try {
             fdIter1.next()
         } catch (e: NoSuchElementException) {
@@ -100,7 +100,7 @@ private class ExtendableMessageFieldDescriptors<M : Message>(
             return fd1 != null || fd2 != null || fdIter1.hasNext() || fdIter2.hasNext()
         }
 
-        override fun next(): FieldDescriptor<M, out Any?> {
+        override fun next(): FieldDescriptor<M, MM, out Any?> {
             return if (fd1 != null) {
                 if (fd2 != null) {
                     if (fd1!!.number < fd2!!.number) {
@@ -156,11 +156,11 @@ protected constructor(
     @Suppress("CanBePrimaryConstructorProperty")
     override val unknownFields: Map<Int, UnknownField> = unknownFields
 
-    override val protoSize: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { computeProtoSize() }
-    private val _hashCode: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { computeHashCode() }
+    override val protoSize: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { super.protoSize }
+    private val _hashCode: Int by lazy(LazyThreadSafetyMode.PUBLICATION) { super.hashCode() }
     override fun hashCode(): Int = _hashCode
 
-    override fun fieldDescriptors(ordered: Boolean): Collection<FieldDescriptor<M, out Any?>> {
+    override fun fieldDescriptors(ordered: Boolean): Collection<FieldDescriptor<M, MutableMessage<M>, out Any?>> {
         return if (extensionFields.isEmpty()) {
             messageDescriptor.fields
         } else {
@@ -179,7 +179,7 @@ protected constructor(
 
     override val extensionFields: MutableFieldSet<M> = MutableExtensionFieldSet()
 
-    override fun fieldDescriptors(ordered: Boolean): Collection<FieldDescriptor<M, out Any?>> {
+    override fun fieldDescriptors(ordered: Boolean): Collection<FieldDescriptor<M, MutableMessage<M>, out Any?>> {
         return ExtendableMessageFieldDescriptors(ordered, messageDescriptor.fields, extensionFields)
     }
 }

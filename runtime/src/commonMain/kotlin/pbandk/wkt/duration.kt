@@ -8,7 +8,16 @@ public sealed interface Duration : pbandk.Message {
     public val nanos: Int
 
     override operator fun plus(other: pbandk.Message?): pbandk.wkt.Duration
-    override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Duration>
+
+    override val companion: pbandk.Message.Companion<pbandk.wkt.Duration, pbandk.wkt.MutableDuration>
+
+    @Deprecated(
+        message = "Use companion.valueType.descriptor instead",
+        replaceWith = ReplaceWith("companion.valueType.descriptor")
+    )
+    @Suppress("UNCHECKED_CAST")
+    override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Duration, pbandk.wkt.MutableDuration>
+        get() = companion.valueType.descriptor as pbandk.MessageDescriptor<pbandk.wkt.Duration, pbandk.wkt.MutableDuration>
 
     /**
      * The [MutableDuration] passed as a receiver to the [builderAction] is valid only inside that function.
@@ -24,55 +33,56 @@ public sealed interface Duration : pbandk.Message {
         unknownFields: Map<Int, pbandk.UnknownField> = this.unknownFields
     ): pbandk.wkt.Duration
 
+    public companion object : pbandk.Message.Companion<pbandk.wkt.Duration, pbandk.wkt.MutableDuration>() {
+        private val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Duration, pbandk.wkt.MutableDuration> =
+            pbandk.messageDescriptor(
+                metadata = pbandk.MessageMetadata(
+                    fullName = "google.protobuf.Duration",
+                    syntax = Syntax.PROTO3,
+                ),
+                builder = ::Duration,
+            )
+
+        override val valueType: pbandk.internal.types.MessageValueType<Duration, Duration> =
+            pbandk.internal.types.wkt.Duration(descriptor)
+//            object : pbandk.internal.types.PbandkMessageValueType<Duration, Duration>() {
+//                override val descriptor: pbandk.MessageDescriptor<Duration, pbandk.wkt.MutableDuration> =
+//                    this@Companion.descriptor
+//            }
+    }
+
     @pbandk.PublicForGeneratedCode
     public object FieldDescriptors {
-        public val seconds: pbandk.FieldDescriptor<pbandk.wkt.Duration, Long> =
+        public val seconds: pbandk.FieldDescriptor<pbandk.wkt.Duration, pbandk.wkt.MutableDuration, Long> =
             pbandk.FieldDescriptor.ofSingular(
-                messageDescriptor = pbandk.wkt.Duration::descriptor,
-                messageMetadata = pbandk.wkt.Duration.messageMetadata,
+                messageDescriptor = pbandk.wkt.Duration.descriptor,
                 name = "seconds",
                 number = 1,
                 valueType = pbandk.types.int64(),
                 jsonName = "seconds",
                 value = pbandk.wkt.Duration::seconds,
-                mutableValue = pbandk.wkt.MutableDuration::seconds,
+                mutableValue = pbandk.wkt.MutableDuration::seconds::set,
             )
-        public val nanos: pbandk.FieldDescriptor<pbandk.wkt.Duration, Int> =
+        public val nanos: pbandk.FieldDescriptor<pbandk.wkt.Duration, pbandk.wkt.MutableDuration, Int> =
             pbandk.FieldDescriptor.ofSingular(
-                messageDescriptor = pbandk.wkt.Duration::descriptor,
-                messageMetadata = pbandk.wkt.Duration.messageMetadata,
+                messageDescriptor = pbandk.wkt.Duration.descriptor,
                 name = "nanos",
                 number = 2,
                 valueType = pbandk.types.int32(),
                 jsonName = "nanos",
                 value = pbandk.wkt.Duration::nanos,
-                mutableValue = pbandk.wkt.MutableDuration::nanos,
+                mutableValue = pbandk.wkt.MutableDuration::nanos::set,
             )
-    }
 
-    public companion object : pbandk.Message.Companion<pbandk.wkt.Duration>() {
-        override val defaultInstance: pbandk.wkt.Duration by lazy(LazyThreadSafetyMode.PUBLICATION) {
-            pbandk.wkt.Duration {}
-        }
-
-        private val messageMetadata = pbandk.MessageMetadata(
-            fullName = "google.protobuf.Duration",
-            syntax = pbandk.wkt.Syntax.PROTO3,
-        )
-
-        override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Duration> by lazy {
-            pbandk.MessageDescriptor.of(
-                metadata = messageMetadata,
-                messageClass = pbandk.wkt.Duration::class,
-                messageCompanion = this,
-                builder = ::Duration,
-                fields = listOf(
-                    pbandk.wkt.Duration.FieldDescriptors.seconds,
-                    pbandk.wkt.Duration.FieldDescriptors.nanos,
-                ),
+        init {
+            pbandk.wkt.Duration.descriptor.addFields(
+                seconds, nanos,
             )
+            pbandk.wkt.Duration.descriptor.finalize()
         }
     }
+
+
 }
 
 public sealed interface MutableDuration : pbandk.wkt.Duration, pbandk.MutableMessage<pbandk.wkt.Duration> {
@@ -118,7 +128,7 @@ private class Duration_Impl(
     override val nanos: Int,
     unknownFields: Map<Int, pbandk.UnknownField>
 ) : pbandk.wkt.Duration, pbandk.gen.GeneratedMessage<pbandk.wkt.Duration>(unknownFields) {
-    override val descriptor get() = pbandk.wkt.Duration.descriptor
+    override val companion: pbandk.Message.Companion<Duration, MutableDuration> get() = pbandk.wkt.Duration
 
     @Suppress("RedundantOverride")
     override fun copy(builderAction: pbandk.wkt.MutableDuration.() -> Unit) = super.copy(builderAction)
@@ -139,7 +149,8 @@ private class MutableDuration_Impl(
     override var seconds: Long,
     override var nanos: Int,
 ) : pbandk.wkt.MutableDuration, pbandk.gen.MutableGeneratedMessage<pbandk.wkt.Duration>() {
-    override val descriptor get() = pbandk.wkt.Duration.descriptor
+    override val companion: pbandk.Message.Companion<pbandk.wkt.Duration, pbandk.wkt.MutableDuration>
+        get() = pbandk.wkt.Duration
 
     @Suppress("RedundantOverride")
     override fun copy(builderAction: pbandk.wkt.MutableDuration.() -> Unit) = super.copy(builderAction)

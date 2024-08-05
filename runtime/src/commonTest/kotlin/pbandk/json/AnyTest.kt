@@ -5,8 +5,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import pbandk.InvalidProtocolBufferException
-import pbandk.Message
 import pbandk.add
+import pbandk.internal.types.MessageValueType
 import pbandk.pack
 import pbandk.testpb.Foo
 import pbandk.testpb.TestAllTypesProto3
@@ -21,11 +21,15 @@ import kotlin.test.assertFailsWith
 class AnyTest {
     private lateinit var jsonConfig: JsonConfig
 
-    private inline fun <T : Message> assertJsonRoundTrip(message: T, expectedJson: JsonObject) {
-        val actualJson = Json.parseToJsonElement(message.encodeToJsonString(jsonConfig))
+    private inline fun <T : kotlin.Any> assertJsonRoundTrip(
+        valueType: MessageValueType<T, *>,
+        message: T,
+        expectedJson: JsonObject
+    ) {
+        val actualJson = Json.parseToJsonElement(valueType.encodeToJsonString(message, jsonConfig))
         assertEquals(expectedJson, actualJson)
 
-        val actualProto = message.descriptor.messageCompanion.decodeFromJsonString(expectedJson.toString(), jsonConfig)
+        val actualProto = valueType.decodeFromJsonString(expectedJson.toString(), jsonConfig)
         assertEquals(message, actualProto)
     }
 
@@ -50,7 +54,7 @@ class AnyTest {
             })
         }
 
-        assertJsonRoundTrip(testAllTypesProto3, expectedJson)
+        assertJsonRoundTrip(TestAllTypesProto3.valueType, testAllTypesProto3, expectedJson)
     }
 
     @Test
@@ -61,7 +65,7 @@ class AnyTest {
             put("optionalBool", true)
         }
 
-        assertJsonRoundTrip(any, expectedJson)
+        assertJsonRoundTrip(Any.valueType, any, expectedJson)
     }
 
     @Test
@@ -90,7 +94,7 @@ class AnyTest {
             put("value", 12345)
         }
 
-        assertJsonRoundTrip(any, expectedJson)
+        assertJsonRoundTrip(Any.valueType, any, expectedJson)
     }
 
     @Test
@@ -101,6 +105,6 @@ class AnyTest {
             put("optionalInt32", 12345)
         }
 
-        assertJsonRoundTrip(any, expectedJson)
+        assertJsonRoundTrip(Any.valueType, any, expectedJson)
     }
 }

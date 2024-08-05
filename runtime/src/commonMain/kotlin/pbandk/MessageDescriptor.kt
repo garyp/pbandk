@@ -1,9 +1,7 @@
 package pbandk
 
-import pbandk.internal.types.MessageValueType
+import pbandk.gen.ExtendableMessageFieldDescriptors
 import pbandk.wkt.Syntax
-import kotlin.js.JsExport
-import kotlin.reflect.KClass
 
 public class MessageMetadata @PublicForGeneratedCode constructor(
     /**
@@ -30,16 +28,29 @@ public class MessageMetadata @PublicForGeneratedCode constructor(
 }
 
 @Export
-public class MessageDescriptor<M : Message> private constructor(
-    internal val metadata: MessageMetadata,
-    internal val messageClass: KClass<M>,
-    internal val builder: (MutableMessage<M>.() -> Unit) -> M,
+public abstract class MessageDescriptor<M : Any, MM : Any> internal constructor() {
+    internal abstract val metadata: MessageMetadata
+    internal abstract val builder: (MM.() -> Unit) -> M
     @ExperimentalProtoReflection
-    public val messageCompanion: Message.Companion<M>,
-    @ExperimentalProtoReflection
-    public val fields: FieldDescriptorSet<M>,
-    internal val oneofs: Collection<OneofDescriptor<M, *>>,
-) {
+    public abstract val fields: FieldDescriptorSet<M, MM>
+    internal abstract val oneofs: Collection<OneofDescriptor<M, MM, *>>
+
+    @PublicForGeneratedCode
+    public abstract fun addFields(vararg fields: FieldDescriptor<M, MM, *>)
+
+    @PublicForGeneratedCode
+    public abstract fun addOneofs(vararg oneofs: OneofDescriptor<M, MM, *>)
+
+    @PublicForGeneratedCode
+    public abstract fun finalize()
+
+    /**
+     * Returns the default value for this message type. Can throw an exception if [M] is a message with `required`
+     * fields, since such messages do not have a default value.
+     */
+    @get:Throws(UnsupportedOperationException::class)
+    public val defaultInstance: M by lazy(LazyThreadSafetyMode.PUBLICATION) { builder {} }
+
     /**
      * The message type's fully-qualified name, within the proto language's namespace. This differs from
      * the Kotlin name. For example, given this `.proto`:
@@ -57,28 +68,84 @@ public class MessageDescriptor<M : Message> private constructor(
     /** The message type's unqualified name. */
     public val name: String get() = metadata.name
 
-    internal val messageValueType: MessageValueType<M> get() = messageCompanion.messageValueType as MessageValueType<M>
+    internal fun fieldDescriptors(message: M, ordered: Boolean = false): Collection<FieldDescriptor<M, MM, out Any?>> =
+        if (message !is ExtendableMessage<*> || message.extensionFields.isEmpty()) {
+            fields
+        } else {
+            ExtendableMessageFieldDescriptors(ordered, fields, message.extensionFields as FieldSet<M, MM>)
+        }
 
-    public companion object {
-        @JsExport.Ignore
-        @PublicForGeneratedCode
-        public fun <M : Message, MM : MutableMessage<M>> of(
-            metadata: MessageMetadata,
-            messageClass: KClass<M>,
-            messageCompanion: Message.Companion<M>,
-            builder: (MM.() -> Unit) -> M,
-            fields: Collection<FieldDescriptor<M, *>> = emptyList(),
-            oneofs: Collection<OneofDescriptor<M, *>> = emptyList(),
-        ): MessageDescriptor<M> = MessageDescriptor(
-            metadata = metadata,
-            messageClass = messageClass,
-            builder = builder,
-            messageCompanion = messageCompanion,
-            // Keep fields sorted by number so that message encoding outputs fields in order by number. This is not
-            // required by the protobuf encoding spec, but is recommended (and is implemented by the official C++, Java,
-            // and Python implementations).
-            fields = FieldDescriptorSet((fields + oneofs.flatMap { it.fields }).sortedBy { it.number }),
-            oneofs = oneofs
-        )
+    internal fun computeBinarySize(message: M): Int {
+        var size = 0
+
+        fieldDescriptors(message).forEach { fd ->
+            size += fd.binarySize(message)
+        }
+
+        size += unknownFields(message).values.sumOf { it.size }
+        return size
+    }
+
+    internal open fun protoSize(message: M): Int {
+        return computeBinarySize(message)
+    }
+
+    internal abstract fun unknownFields(message: M): Map<Int, UnknownField>
+    internal abstract fun unknownFields(mutableMessage: MM): MutableMap<Int, UnknownField>
+}
+
+@PublicForGeneratedCode
+public fun <M : Message, MM : MutableMessage<M>> messageDescriptor(
+    metadata: MessageMetadata,
+    builder: (MM.() -> Unit) -> M,
+): MessageDescriptor<M, MM> = PbandkMessageDescriptor(
+    metadata = metadata,
+    builder = builder,
+)
+
+private open class PbandkMessageDescriptor<M : Message, MM : MutableMessage<M>>(
+    override val metadata: MessageMetadata,
+    override val builder: (MM.() -> Unit) -> M,
+) : MessageDescriptor<M, MM>() {
+    private val _fields = mutableListOf<FieldDescriptor<M, MM, *>>()
+    final override lateinit var fields: FieldDescriptorSet<M, MM>
+        private set
+
+    private val _oneofs: MutableList<OneofDescriptor<M, MM, *>> = mutableListOf()
+    override val oneofs: Collection<OneofDescriptor<M, MM, *>> by ::_oneofs
+
+    override fun unknownFields(message: M) = message.unknownFields
+    override fun unknownFields(mutableMessage: MM) = mutableMessage.unknownFields
+
+    // Delegate to the message so that we can use the cached protoSize value
+    override fun protoSize(message: M) = message.protoSize
+
+    override fun addFields(vararg fields: FieldDescriptor<M, MM, *>) {
+        require(fields.none { it.metadata.isOneofMember }) {
+            "Fields that are part of a oneof must be added only via addOneofs()"
+        }
+        _fields.addAll(fields)
+    }
+
+    override fun addOneofs(vararg oneofs: OneofDescriptor<M, MM, *>) {
+        _oneofs.addAll(oneofs)
+        _fields.addAll(oneofs.flatMap { it.fields })
+    }
+
+    override fun finalize() {
+        // Keep fields sorted by number so that message encoding outputs fields in order by number. This is not
+        // required by the protobuf encoding spec, but is recommended (and is implemented by the official C++, Java,
+        // and Python implementations).
+        _fields.sortBy { it.number }
+        fields = FieldDescriptorSet(_fields)
+    }
+}
+
+private class ExtendableMessageDescriptor<M : ExtendableMessage<M>, MM : MutableExtendableMessage<M>>(
+    metadata: MessageMetadata,
+    builder: (MM.() -> Unit) -> M,
+) : PbandkMessageDescriptor<M, MM>(metadata, builder) {
+    override fun protoSize(message: M): Int {
+        return super.protoSize(message) +
     }
 }

@@ -2483,7 +2483,8 @@ oneofField =
         }
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.conformance.pb.TestAllTypesProto3>() {
+    public companion object :
+        pbandk.Message.Companion<pbandk.conformance.pb.TestAllTypesProto3, pbandk.conformance.pb.MutableTestAllTypesProto3>() {
         override val defaultInstance: pbandk.conformance.pb.TestAllTypesProto3 by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.conformance.pb.TestAllTypesProto3 {}
         }

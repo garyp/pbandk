@@ -40,7 +40,7 @@ public class MutableListField<T : Any> private constructor(
     // Convenience factory function to keep generated code more succinct
     @PublicForGeneratedCode
     @Suppress("UNCHECKED_CAST")
-    public constructor(fieldDescriptor: FieldDescriptor<*, *>) : this(
+    public constructor(fieldDescriptor: FieldDescriptor<*, *, *>) : this(
         (fieldDescriptor.fieldType as FieldType.Repeated<T>).valueType
     )
 

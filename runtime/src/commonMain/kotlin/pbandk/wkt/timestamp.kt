@@ -50,7 +50,7 @@ public sealed interface Timestamp : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.wkt.Timestamp>() {
+    public companion object : pbandk.Message.Companion<pbandk.wkt.Timestamp, pbandk.wkt.MutableTimestamp>() {
         override val defaultInstance: pbandk.wkt.Timestamp by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.wkt.Timestamp {}
         }

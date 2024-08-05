@@ -1,12 +1,10 @@
 package pbandk
 
 import com.google.protobuf_test_messages.proto3.TestMessagesProto3
-import pbandk.gen.MapField
 import pbandk.testpb.ForeignEnum
 import pbandk.testpb.MessageWithMap
 import pbandk.testpb.TestAllTypesProto3
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 class JvmMapTest {
     @Test
@@ -15,20 +13,7 @@ class JvmMapTest {
         // Generate a Java version of the proto and deserialize Kotlin version and vice-versa
         val builtJavaObj = pbandk.testpb.java.Test.MessageWithMap.newBuilder().putAllMap(testMap).build()
         val builtKotlinObj = MessageWithMap { map += testMap }
-        pbandkJavaRoundtripTest(builtJavaObj, builtKotlinObj, MessageWithMap.Companion)
-    }
-
-    @Test
-    fun testMapDecodeType() {
-        val messageWithMap = MessageWithMap {
-            map["1"] = "a"
-            map["2"] = "b"
-            map["blahblahblah"] = "5000"
-        }
-        val deserialized = MessageWithMap.decodeFromByteArray(messageWithMap.encodeToByteArray())
-
-        // Check that map-with-size
-        assertTrue(deserialized.map is MapField)
+        pbandkJavaRoundtripTest(builtJavaObj, builtKotlinObj, MessageWithMap.valueType)
     }
 
     @Test
@@ -66,7 +51,7 @@ class JvmMapTest {
         pbandkJavaRoundtripTest(
             builtJavaObj,
             builtKotlinObj,
-            TestAllTypesProto3.Companion,
+            TestAllTypesProto3.valueType,
             // protobuf-java and pbandk encoded representations will be different because protobuf-java serializes map
             // entries with default values whereas pbandk omits them. Both approaches are allowed by the proto3 spec. So
             // even though sizes and bytes will be different, protobuf-java and pbandk should still be able to read the

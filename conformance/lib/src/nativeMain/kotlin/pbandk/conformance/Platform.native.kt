@@ -25,7 +25,7 @@ private object NativePlatform : Platform {
     override val stdout = StdIoSink(posixStdout!!).buffered()
     override val stderr = StdIoSink(posixStderr!!).buffered()
 
-    override suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T>): T? =
+    override suspend fun <T : Message> stdinReadLengthDelimitedMessage(companion: Message.Companion<T, *>): T? =
         withContext(Dispatchers.IO) {
             if (!stdin.request(4)) return@withContext null
             val size = stdin.readIntLe()

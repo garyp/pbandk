@@ -2226,23 +2226,21 @@ oneofField =
         }
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.conformance.pb.TestAllTypesProto2>() {
-        override val defaultInstance: pbandk.conformance.pb.TestAllTypesProto2 by lazy(LazyThreadSafetyMode.PUBLICATION) {
-            pbandk.conformance.pb.TestAllTypesProto2 {}
-        }
-
+    public companion object :
+        pbandk.Message.Companion<pbandk.conformance.pb.TestAllTypesProto2, pbandk.conformance.pb.MutableTestAllTypesProto2>() {
         private val messageMetadata = pbandk.MessageMetadata(
             fullName = "protobuf_test_messages.proto2.TestAllTypesProto2",
             syntax = pbandk.wkt.Syntax.PROTO2,
         )
 
-        override val descriptor: pbandk.MessageDescriptor<pbandk.conformance.pb.TestAllTypesProto2> by lazy {
-            pbandk.MessageDescriptor.of(
+        override val descriptor: pbandk.MessageDescriptor<pbandk.conformance.pb.TestAllTypesProto2, pbandk.conformance.pb.MutableTestAllTypesProto2> =
+            pbandk.messageDescriptor(
                 metadata = messageMetadata,
-                messageClass = pbandk.conformance.pb.TestAllTypesProto2::class,
-                messageCompanion = this,
                 builder = ::TestAllTypesProto2,
-                fields = listOf(
+            )
+
+        init {
+            descriptor.addFields(
                     pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.optionalInt32,
                     pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.optionalInt64,
                     pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.optionalUint32,
@@ -2368,11 +2366,11 @@ oneofField =
                     pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.field_Name16,
                     pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.fieldName17_,
                     pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.fieldName18_,
-                ),
-                oneofs = listOf(
-                    pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.oneofField,
-                ),
             )
+            descriptor.addOneofs(
+                    pbandk.conformance.pb.TestAllTypesProto2.FieldDescriptors.oneofField,
+            )
+            descriptor.finalize()
         }
 
         @Deprecated(

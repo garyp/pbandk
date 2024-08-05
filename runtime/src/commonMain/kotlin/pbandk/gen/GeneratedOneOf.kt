@@ -4,7 +4,7 @@ import pbandk.FieldDescriptor
 import pbandk.Message
 import pbandk.PublicForGeneratedCode
 
-public abstract class GeneratedOneOf<M : Message, V : Any>
+public abstract class GeneratedOneOf<M : Any, V : Any>
 @PublicForGeneratedCode
 protected constructor(
     public override val value: V,

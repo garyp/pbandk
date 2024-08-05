@@ -2,8 +2,10 @@ package pbandk.types
 
 import pbandk.ByteArr
 import pbandk.Message
+import pbandk.MessageEncoding
+import pbandk.MutableMessage
 import pbandk.PublicForGeneratedCode
-import pbandk.internal.types.MessageValueType
+import pbandk.internal.types.PbandkMessageValueType
 import pbandk.internal.types.primitive.Bool
 import pbandk.internal.types.primitive.Bytes
 import pbandk.internal.types.primitive.Fixed32
@@ -70,13 +72,13 @@ public fun <E : Message.Enum> enum(enumCompanion: Message.Enum.Companion<E>): Va
     enumCompanion.descriptor.enumValueType
 
 @PublicForGeneratedCode
-public fun <M : Message> group(
-    messageCompanion: Message.Companion<M>,
-): ValueType<M> = MessageValueType(messageCompanion, encoding = pbandk.MessageEncoding.DELIMITED)
+public fun <M : Message, MM : MutableMessage<M>> group(
+    messageCompanion: Message.Companion<M, MM>,
+): ValueType<M> = PbandkMessageValueType(messageCompanion.valueType.descriptor, encoding = MessageEncoding.DELIMITED)
 
 @PublicForGeneratedCode
-public fun <M : Message> message(
-    messageCompanion: Message.Companion<M>,
+public fun <M : Message, MM : MutableMessage<M>> message(
+    messageCompanion: Message.Companion<M, MM>,
     /**
      * Set to `true` when a field contains a message type and that message is a parent or ancestor of the field. This
      * will construct a new `ValueType<M>` instance for the message type instead of reusing the existing one, but is
@@ -104,7 +106,7 @@ public fun <M : Message> message(
      */
     recursive: Boolean = false,
 ): ValueType<M> = if (recursive) {
-    MessageValueType(messageCompanion)
+    PbandkMessageValueType(messageCompanion.valueType.descriptor)
 } else {
-    messageCompanion.messageValueType
+    messageCompanion.valueType
 }

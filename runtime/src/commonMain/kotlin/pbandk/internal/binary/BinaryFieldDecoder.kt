@@ -87,7 +87,7 @@ internal sealed class BinaryFieldDecoder {
         }
 
         override fun readTag(): Tag {
-            check(!isAtEnd()) { "isAtEnd() should be called before callingn readTag()" }
+            check(!isAtEnd()) { "isAtEnd() should be called before calling readTag()" }
 
             if (!valueIterator.hasNext()) {
                 incrementIterator()

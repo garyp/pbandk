@@ -1,6 +1,6 @@
 package pbandk
 
-import pbandk.gen.messageDescriptor
+import pbandk.gen.messageCompanion
 import pbandk.internal.binary.BinaryDecoderContext
 import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.binary.BinaryMessageDecoder
@@ -9,6 +9,7 @@ import pbandk.internal.binary.InputStreamWireReader
 import pbandk.internal.binary.OutputStreamWireWriter
 import pbandk.internal.binary.fromByteBuffer
 import pbandk.internal.binary.fromInputStream
+import pbandk.internal.types.MessageValueType
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -18,9 +19,12 @@ import java.nio.ByteBuffer
  *
  * @return number of bytes written to [stream]
  */
-public fun <T : Message> T.encodeToStream(stream: OutputStream): Int {
+public fun <T : Message> T.encodeToStream(stream: OutputStream): Int =
+    messageCompanion.valueType.encodeToStream(this, stream)
+
+public fun <T : Any> MessageValueType<T, *>.encodeToStream(message: T, stream: OutputStream): Int {
     val wireWriter = OutputStreamWireWriter(stream)
-    encodeWith(BinaryMessageEncoder(BinaryFieldEncoder(wireWriter)))
+    BinaryMessageEncoder(BinaryFieldEncoder(wireWriter)).writeMessage(message, this)
     wireWriter.flush()
     return wireWriter.totalBytesWritten
 }
@@ -29,16 +33,29 @@ public fun <T : Message> T.encodeToStream(stream: OutputStream): Int {
  * Decode a binary protocol buffer message from [stream].
  */
 @Throws(InvalidProtocolBufferException::class)
-public fun <T : Message> Message.Companion<T>.decodeFromStream(stream: InputStream, expectedSize: Int = -1): T =
-    decodeWith(BinaryMessageDecoder.fromInputStream(stream, expectedSize))
+public fun <T : Message> Message.Companion<T, *>.decodeFromStream(
+    stream: InputStream,
+    expectedSize: Int = -1
+): T = valueType.decodeFromStream(stream, expectedSize)
+
+@Throws(InvalidProtocolBufferException::class)
+public fun <T : Any> MessageValueType<T, *>.decodeFromStream(
+    stream: InputStream,
+    expectedSize: Int = -1
+): T = BinaryMessageDecoder.fromInputStream(stream, expectedSize).readMessage(this)
 
 /**
  * Decode a binary protocol buffer message from [buffer]. The data starting from the ByteBuffer's current position to
  * its limit will be read. Note that the ByteBuffer's position won't be changed by this function.
  */
 @Throws(InvalidProtocolBufferException::class)
-public fun <T : Message> Message.Companion<T>.decodeFromByteBuffer(buffer: ByteBuffer): T =
-    decodeWith(BinaryMessageDecoder.fromByteBuffer(buffer))
+public fun <T : Message> Message.Companion<T, *>.decodeFromByteBuffer(buffer: ByteBuffer): T =
+    valueType.decodeFromByteBuffer(buffer)
+
+
+@Throws(InvalidProtocolBufferException::class)
+public fun <T : Any> MessageValueType<T, *>.decodeFromByteBuffer(buffer: ByteBuffer): T =
+    BinaryMessageDecoder.fromByteBuffer(buffer).readMessage(this)
 
 /**
  * Decode the next message of type [T] from the [stream] of size-delimited binary protocol buffer messages. `null` is
@@ -50,7 +67,11 @@ public fun <T : Message> Message.Companion<T>.decodeFromByteBuffer(buffer: ByteB
  * @see [encodeDelimitedToStream]
  */
 @Throws(InvalidProtocolBufferException::class)
-public fun <T : Message> Message.Companion<T>.decodeDelimitedFromStream(stream: InputStream): T? {
+public fun <T : Message> Message.Companion<T, *>.decodeDelimitedFromStream(stream: InputStream): T? =
+    valueType.decodeDelimitedFromStream(stream)
+
+@Throws(InvalidProtocolBufferException::class)
+public fun <T : Any> MessageValueType<T, *>.decodeDelimitedFromStream(stream: InputStream): T? {
     val firstByte = stream.read()
     if (firstByte == -1) {  // eof
         return null
@@ -58,7 +79,7 @@ public fun <T : Message> Message.Companion<T>.decodeDelimitedFromStream(stream: 
 
     val decoderContext = BinaryDecoderContext(InputStreamWireReader(firstByte.toByte(), stream))
     return try {
-        descriptor.messageValueType.decodeFromBinary(decoderContext.lenValueDecoder)
+        decodeFromBinary(decoderContext.lenValueDecoder)
     } catch (e: InvalidProtocolBufferException) {
         throw e
     } catch (e: Exception) {
@@ -77,7 +98,11 @@ public fun <T : Message> Message.Companion<T>.decodeDelimitedFromStream(stream: 
  * @see [decodeDelimitedFromStream]
  */
 public fun <T : Message> T.encodeDelimitedToStream(stream: OutputStream) {
+    messageCompanion.valueType.encodeDelimitedToStream(this, stream)
+}
+
+public fun <T : Any> MessageValueType<T, *>.encodeDelimitedToStream(message: T, stream: OutputStream) {
     val wireWriter = OutputStreamWireWriter(stream)
-    messageDescriptor.messageValueType.encodeToBinary(this, BinaryFieldEncoder(wireWriter).valueEncoder)
+    encodeToBinary(message, BinaryFieldEncoder(wireWriter).valueEncoder)
     wireWriter.flush()
 }

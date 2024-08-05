@@ -6,23 +6,23 @@ import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty0
 import kotlin.reflect.KProperty1
 
-public class OneofDescriptor<M : Message, O : Message.OneOf<*>> private constructor(
-    getMessageDescriptor: () -> MessageDescriptor<M>,
+public class OneofDescriptor<M : Any, MM : Any, O : Message.OneOf<*>> private constructor(
+    getMessageDescriptor: () -> MessageDescriptor<M, MM>,
     @ExperimentalProtoReflection
     public val name: String,
     internal val getValue: (M) -> O?,
-    internal val setValue: (MutableMessage<M>, O?) -> Unit,
+    internal val setValue: (MM, O?) -> Unit,
     @ExperimentalProtoReflection
-    public val fields: FieldDescriptorSet<M>,
+    public val fields: FieldDescriptorSet<M, MM>,
     // TODO: make this public once we're actually populating it correctly in the CodeGenerator
     internal val options: OneofOptions = OneofOptions.defaultInstance
 ) {
     // At the time that the [OneofDescriptor] constructor is called, the parent [MessageDescriptor] has not been
     // constructed yet. This is because this [OneofDescriptor] is one of the parameters that will be passed to the
     // [MessageDescriptor] constructor. To avoid the circular dependency, this property is declared lazy.
-    internal val messageDescriptor: MessageDescriptor<M> by lazy(LazyThreadSafetyMode.PUBLICATION) { getMessageDescriptor() }
+    internal val messageDescriptor: MessageDescriptor<M, MM> by lazy(LazyThreadSafetyMode.PUBLICATION) { getMessageDescriptor() }
 
-    internal fun mergeValues(message: M, otherMessage: M, destination: MutableMessage<M>) {
+    internal fun mergeValues(message: M, otherMessage: M, destination: MM) {
         val otherValue = getValue(otherMessage) ?: return
         val value = getValue(message)
 
@@ -39,13 +39,13 @@ public class OneofDescriptor<M : Message, O : Message.OneOf<*>> private construc
         @PublicForGeneratedCode
         @Suppress("UNCHECKED_CAST")
         public fun <M : Message, MM : MutableMessage<M>, O : Message.OneOf<*>> of(
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+            messageDescriptor: KProperty0<MessageDescriptor<M, MM>>,
             name: String,
             value: KProperty1<M, O?>,
             mutableValue: KMutableProperty1<MM, O?>,
-            fields: Collection<FieldDescriptor<M, *>>,
+            fields: Collection<FieldDescriptor<M, MM, *>>,
             options: OneofOptions = OneofOptions.defaultInstance
-        ): OneofDescriptor<M, O> = OneofDescriptor(
+        ): OneofDescriptor<M, MM, O> = OneofDescriptor(
             getMessageDescriptor = messageDescriptor::get,
             name = name,
             getValue = value::get,

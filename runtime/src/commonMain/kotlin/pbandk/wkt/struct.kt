@@ -37,7 +37,7 @@ public sealed interface Struct : pbandk.Message {
     public val fields: Map<String, pbandk.wkt.Value>
 
     override operator fun plus(other: pbandk.Message?): pbandk.wkt.Struct
-    override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Struct>
+    override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Struct, pbandk.wkt.MutableStruct>
 
     /**
      * The [MutableStruct] passed as a receiver to the [builderAction] is valid only inside that function.
@@ -54,12 +54,15 @@ public sealed interface Struct : pbandk.Message {
 
     @pbandk.PublicForGeneratedCode
     public object FieldDescriptors {
-        public val fields: pbandk.FieldDescriptor.MutableValue<pbandk.wkt.Struct, Map<String, pbandk.wkt.Value>, MutableMap<String, pbandk.wkt.Value>> =
+        public val fields: pbandk.FieldDescriptor.MutableValue<pbandk.wkt.Struct, pbandk.wkt.MutableStruct, Map<String, pbandk.wkt.Value>, MutableMap<String, pbandk.wkt.Value>> =
             pbandk.FieldDescriptor.ofMap(
-                messageDescriptor = pbandk.wkt.Struct::descriptor,
-                messageMetadata = pbandk.wkt.Struct.messageMetadata,
+                messageDescriptor = pbandk.wkt.Struct.descriptor,
                 name = "fields",
                 number = 1,
+                mapEntryMessageMetadata = pbandk.MessageMetadata(
+                    fullName = "google.protobuf.Struct.FieldsEntry",
+                    syntax = pbandk.wkt.Syntax.PROTO3,
+                ),
                 keyType = pbandk.types.string(),
                 valueType = pbandk.types.value(),
                 jsonName = "fields",
@@ -68,27 +71,24 @@ public sealed interface Struct : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.wkt.Struct>() {
-        override val defaultInstance: pbandk.wkt.Struct by lazy(LazyThreadSafetyMode.PUBLICATION) {
-            pbandk.wkt.Struct {}
-        }
-
+    public companion object : pbandk.Message.Companion<pbandk.wkt.Struct, pbandk.wkt.MutableStruct>() {
         private val messageMetadata = pbandk.MessageMetadata(
             fullName = "google.protobuf.Struct",
             syntax = pbandk.wkt.Syntax.PROTO3,
         )
 
-        override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Struct> by lazy {
-            pbandk.MessageDescriptor.of(
-                metadata = messageMetadata,
-                messageClass = pbandk.wkt.Struct::class,
-                messageCompanion = this,
-                builder = ::Struct,
-                fields = listOf(
-                    pbandk.wkt.Struct.FieldDescriptors.fields,
-                ),
+        private val descriptor = pbandk.messageDescriptor(
+            metadata = messageMetadata,
+            builder = ::Struct,
+        ).apply {
+            addFields(
+                pbandk.wkt.Struct.FieldDescriptors.fields,
             )
+            finalize()
         }
+
+        override val valueType: pbandk.internal.types.MessageValueType<pbandk.wkt.Struct, pbandk.wkt.Struct> =
+            pbandk.internal.types.PbandkMessageValueType(descriptor)
     }
 }
 
@@ -343,7 +343,7 @@ public fun Struct(
 @pbandk.JsName("buildStruct")
 public fun Struct(builderAction: pbandk.wkt.MutableStruct.() -> Unit): pbandk.wkt.Struct =
     pbandk.wkt.MutableStruct_Impl(
-        fields = pbandk.gen.MutableMapField(pbandk.wkt.Struct.FieldDescriptors.fields),
+        fields = mutableMapOf(),
     ).also(builderAction).toStruct()
 
 @pbandk.Export
@@ -351,10 +351,13 @@ public fun Struct(builderAction: pbandk.wkt.MutableStruct.() -> Unit): pbandk.wk
 public fun Struct?.orDefault(): pbandk.wkt.Struct = this ?: pbandk.wkt.Struct.defaultInstance
 
 private class Struct_Impl(
-    override val fields: pbandk.gen.MapField<String, pbandk.wkt.Value>,
+    override val fields: Map<String, pbandk.wkt.Value>,
     unknownFields: Map<Int, pbandk.UnknownField>
 ) : pbandk.wkt.Struct, pbandk.gen.GeneratedMessage<pbandk.wkt.Struct>(unknownFields) {
-    override val descriptor get() = pbandk.wkt.Struct.descriptor
+    override val companion: pbandk.Message.Companion<pbandk.wkt.Struct, pbandk.wkt.MutableStruct>
+        get() = pbandk.wkt.Struct
+    override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Struct, pbandk.wkt.MutableStruct>
+        get() = companion.valueType.descriptor as pbandk.MessageDescriptor<Struct, MutableStruct>
 
     @Suppress("RedundantOverride")
     override fun copy(builderAction: pbandk.wkt.MutableStruct.() -> Unit) = super.copy(builderAction)
@@ -370,9 +373,12 @@ private class Struct_Impl(
 }
 
 private class MutableStruct_Impl(
-    override val fields: pbandk.gen.MutableMapField<String, pbandk.wkt.Value>,
+    override val fields: MutableMap<String, pbandk.wkt.Value>,
 ) : pbandk.wkt.MutableStruct, pbandk.gen.MutableGeneratedMessage<pbandk.wkt.Struct>() {
-    override val descriptor get() = pbandk.wkt.Struct.descriptor
+    override val companion: pbandk.Message.Companion<pbandk.wkt.Struct, pbandk.wkt.MutableStruct>
+        get() = pbandk.wkt.Struct
+    override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.Struct, pbandk.wkt.MutableStruct>
+        get() = companion.valueType.descriptor as pbandk.MessageDescriptor<Struct, MutableStruct>
 
     @Suppress("RedundantOverride")
     override fun copy(builderAction: pbandk.wkt.MutableStruct.() -> Unit) = super.copy(builderAction)
@@ -384,7 +390,7 @@ private class MutableStruct_Impl(
     ): pbandk.wkt.Struct = throw UnsupportedOperationException()
 
     fun toStruct() = Struct_Impl(
-        fields = fields.toMapField(),
+        fields = fields.toMap(),
         unknownFields = unknownFields.toMap()
     )
 }

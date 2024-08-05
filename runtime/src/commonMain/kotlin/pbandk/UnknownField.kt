@@ -55,32 +55,36 @@ constructor(val fieldNum: Int, val values: List<Value>) {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-internal fun <M : Message, T> UnknownField.decodeAs(fieldDescriptor: FieldDescriptor<M, T>): T {
+internal fun <M : Any, MM : Any, T> UnknownField.decodeAs(fieldDescriptor: FieldDescriptor<M, MM, T>): T {
     if (fieldDescriptor.number != fieldNum) {
         throw InvalidProtocolBufferException("Unknown field number $fieldNum does not match field descriptor field number ${fieldDescriptor.number}")
     }
 
+    if (fieldDescriptor is FieldDescriptor.MutableValue<M, MM, T, *>) {
+        return decodeAsMutableValue(fieldDescriptor)
+    }
+
     return when (val fieldType = fieldDescriptor.fieldType) {
-        is FieldType.Optional<*> -> if (fieldType.valueType is MessageValueType<*>) {
-            decodeAsMessage(fieldDescriptor as FieldDescriptor<M, out Message?>) as T
+        is FieldType.Optional<*> -> if (fieldType.valueType is MessageValueType<*, *>) {
+            decodeAsMessage(fieldDescriptor)
         } else {
             decodeAsPrimitive(fieldDescriptor)
         }
 
-        is FieldType.Required<*> -> if (fieldType.valueType is MessageValueType<*>) {
-            decodeAsMessage(fieldDescriptor as FieldDescriptor<M, out Message>) as T
+        is FieldType.Required<*> -> if (fieldType.valueType is MessageValueType<*, *>) {
+            decodeAsMessage(fieldDescriptor)
         } else {
             decodeAsPrimitive(fieldDescriptor)
         }
 
-        is FieldType.Singular<*> -> if (fieldType.valueType is MessageValueType<*>) {
-            decodeAsMessage(fieldDescriptor as FieldDescriptor<M, out Message>) as T
+        is FieldType.Singular<*> -> if (fieldType.valueType is MessageValueType<*, *>) {
+            decodeAsMessage(fieldDescriptor)
         } else {
             decodeAsPrimitive(fieldDescriptor)
         }
 
-        is FieldType.MutableValue<*, *> -> decodeAsMutableValue(fieldDescriptor.metadata, fieldType) as T
+        is FieldType.CollectionFieldType<*, *> ->
+            throw IllegalStateException("CollectionFieldType should've already been handled above")
     }
 }
 
@@ -91,12 +95,12 @@ private fun <T> UnknownField.Value.decodeAs(fieldMetadata: FieldMetadata, fieldT
     return fieldType.decodeFromBinary(fieldMetadata, BinaryFieldValueDecoder.forWireValue(wireValue))
 }
 
-private fun <T> UnknownField.decodeAsPrimitive(fieldDescriptor: FieldDescriptor<*, T>): T {
+private fun <T> UnknownField.decodeAsPrimitive(fieldDescriptor: FieldDescriptor<*, *, T>): T {
     // Protobuf states it will only use the last value for multiple primitive types.
     return values.last().decodeAs(fieldDescriptor.metadata, fieldDescriptor.fieldType)
 }
 
-private fun <T : Message?> UnknownField.decodeAsMessage(fieldDescriptor: FieldDescriptor<*, T>): T {
+private fun <T> UnknownField.decodeAsMessage(fieldDescriptor: FieldDescriptor<*, *, T>): T {
     return values.asSequence()
         .map { it.decodeAs(fieldDescriptor.metadata, fieldDescriptor.fieldType) }
         .reduce { mergedMessage, newMessage ->
@@ -105,15 +109,19 @@ private fun <T : Message?> UnknownField.decodeAsMessage(fieldDescriptor: FieldDe
 }
 
 private fun <T, MT : Any> UnknownField.decodeAsMutableValue(
-    fieldMetadata: FieldMetadata,
-    fieldType: FieldType.MutableValue<T, MT>
+    fieldDescriptor: FieldDescriptor.MutableValue<*, *, T, MT>,
 ): T {
-    val mutableValue = fieldType.newMutableValue()
+    val fieldType = fieldDescriptor.fieldType
+    val mutableValue = fieldType.newMutableCollection()
     values.forEach { value ->
         if (!fieldType.allowsBinaryWireType(value.wireValue.wireType)) {
             throw InvalidProtocolBufferException("Unknown field with wire type ${value.wireValue.wireType} can't be decoded as a '$fieldType' field")
         }
-        fieldType.decodeFromBinary(fieldMetadata, BinaryFieldValueDecoder.forWireValue(value.wireValue), mutableValue)
+        fieldType.decodeFromBinary(
+            fieldDescriptor.metadata,
+            BinaryFieldValueDecoder.forWireValue(value.wireValue),
+            mutableValue
+        )
     }
-    return fieldType.fromMutableValue(mutableValue)
+    return fieldType.fromMutableCollection(mutableValue)
 }

@@ -15,6 +15,7 @@ public interface ValueType<KotlinType : Any> {
      * when you only need to check if another value is the default, as this avoids the possibility of throwing an
      * exception.
      */
+    @get:Throws(UnsupportedOperationException::class)
     public val defaultValue: KotlinType
     public fun isDefaultValue(value: KotlinType): Boolean
     public fun mergeValues(currentValue: KotlinType, newValue: KotlinType): KotlinType

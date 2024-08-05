@@ -3,19 +3,16 @@ package pbandk.internal.types
 import pbandk.FieldMetadata
 import pbandk.InvalidProtocolBufferException
 import pbandk.Message
-import pbandk.MessageEncoding
+import pbandk.MessageMetadata
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.WireType
 import pbandk.gen.ListField
-import pbandk.gen.MapField
-import pbandk.gen.MapFieldEntryCompanion
 import pbandk.gen.MutableListField
-import pbandk.gen.MutableMapField
-import pbandk.gen.MutableMapFieldEntry
 import pbandk.gen.UnrecognizedEnumValue
 import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.binary.Tag
 import pbandk.binary.WireValue
+import pbandk.binary.tryDecodeField
 import pbandk.internal.json.JsonFieldEncoder
 import pbandk.internal.types.primitive.Enum
 import pbandk.json.JsonConfig
@@ -34,6 +31,7 @@ internal sealed class FieldType<KotlinType> {
      * when you only need to check if another value is the default, as this avoids the possibility of throwing an
      * exception.
      */
+    @get:Throws(UnsupportedOperationException::class)
     abstract val defaultValue: KotlinType
 
     abstract fun allowsBinaryWireType(wireType: WireType): Boolean
@@ -44,15 +42,21 @@ internal sealed class FieldType<KotlinType> {
     abstract fun decodeFromBinary(metadata: FieldMetadata, decoder: BinaryFieldValueDecoder): KotlinType
     abstract fun decodeFromJson(metadata: FieldMetadata, decoder: JsonFieldValueDecoder): KotlinType
 
-    sealed class MutableValue<KotlinType, MutableKotlinType : Any> : FieldType<KotlinType>() {
-        abstract fun newMutableValue(): MutableKotlinType
-        abstract fun setMutableValue(mutableValue: MutableKotlinType, newValue: KotlinType)
-        abstract fun fromMutableValue(mutableValue: MutableKotlinType): KotlinType
+    sealed class CollectionFieldType<CollectionType, MutableCollectionType : Any> : FieldType<CollectionType>() {
+        abstract fun newMutableCollection(): MutableCollectionType
+        abstract fun replaceAllItems(collection: MutableCollectionType, newItems: CollectionType)
+        abstract fun fromMutableCollection(mutableCollection: MutableCollectionType): CollectionType
+
+        abstract fun mergeItems(
+            metadata: FieldMetadata,
+            collection: MutableCollectionType,
+            newItems: CollectionType
+        )
 
         abstract fun decodeFromBinary(
             metadata: FieldMetadata,
             decoder: BinaryFieldValueDecoder,
-            mutableValue: MutableKotlinType,
+            mutableCollection: MutableCollectionType,
         )
     }
 
@@ -96,7 +100,7 @@ internal sealed class FieldType<KotlinType> {
 
         override fun decodeFromJson(metadata: FieldMetadata, decoder: JsonFieldValueDecoder): T {
             if (decoder is JsonFieldValueDecoder.Null &&
-                (valueType as? MessageValueType)?.companion != pbandk.wkt.Value &&
+                (valueType as? MessageValueType<*, *>)?.descriptor != pbandk.wkt.Value.descriptor &&
                 (valueType as? Enum)?.enumCompanion != NullValue
             ) {
                 throw InvalidProtocolBufferException("A 'required' field cannot be null since it does not have a default value")
@@ -155,7 +159,7 @@ internal sealed class FieldType<KotlinType> {
 
         override fun decodeFromJson(metadata: FieldMetadata, decoder: JsonFieldValueDecoder): T? {
             if (decoder is JsonFieldValueDecoder.Null &&
-                (valueType as? MessageValueType)?.companion != pbandk.wkt.Value &&
+                (valueType as? MessageValueType<*, *>)?.descriptor != pbandk.wkt.Value.descriptor &&
                 (valueType as? Enum)?.enumCompanion != NullValue
             ) {
                 decoder.consumeNull()
@@ -225,7 +229,7 @@ internal sealed class FieldType<KotlinType> {
 
         override fun decodeFromJson(metadata: FieldMetadata, decoder: JsonFieldValueDecoder): T {
             if (decoder is JsonFieldValueDecoder.Null &&
-                (valueType as? MessageValueType)?.companion != pbandk.wkt.Value &&
+                (valueType as? MessageValueType<*, *>)?.descriptor != pbandk.wkt.Value.descriptor &&
                 (valueType as? Enum)?.enumCompanion != NullValue
             ) {
                 decoder.consumeNull()
@@ -247,7 +251,7 @@ internal sealed class FieldType<KotlinType> {
     class Repeated<T : Any>(
         internal val valueType: ValueType<T>,
         private val packed: Boolean,
-    ) : MutableValue<List<T>, MutableList<T>>() {
+    ) : CollectionFieldType<List<T>, MutableList<T>>() {
         private val List<T>.protoSize: Int
             get() = (this as? ListField<T>)?.protoSize ?: this.sumOf(valueType::binarySize)
 
@@ -255,22 +259,26 @@ internal sealed class FieldType<KotlinType> {
             return currentValue + newValue
         }
 
+        override fun mergeItems(metadata: FieldMetadata, collection: MutableList<T>, newItems: List<T>) {
+            collection.addAll(newItems)
+        }
+
         override fun isDefaultValue(value: List<T>) = value.isEmpty()
 
         override val defaultValue: List<T> get() = ListField.empty()
 
-        override fun newMutableValue(): MutableListField<T> = MutableListField(valueType)
+        override fun newMutableCollection(): MutableListField<T> = MutableListField(valueType)
 
-        override fun setMutableValue(mutableValue: MutableList<T>, newValue: List<T>) {
-            mutableValue.clear()
-            mutableValue.addAll(newValue)
+        override fun replaceAllItems(collection: MutableList<T>, newItems: List<T>) {
+            collection.clear()
+            collection.addAll(newItems)
         }
 
-        override fun fromMutableValue(mutableValue: MutableList<T>): List<T> =
-            if (mutableValue is MutableListField<T>) {
-                mutableValue.toListField()
+        override fun fromMutableCollection(mutableCollection: MutableList<T>): List<T> =
+            if (mutableCollection is MutableListField<T>) {
+                mutableCollection.toListField()
             } else {
-                ListField(valueType, mutableValue)
+                ListField(valueType, mutableCollection)
             }
 
         override fun allowsBinaryWireType(wireType: WireType): Boolean {
@@ -316,22 +324,22 @@ internal sealed class FieldType<KotlinType> {
         override fun decodeFromBinary(
             metadata: FieldMetadata,
             decoder: BinaryFieldValueDecoder,
-            mutableValue: MutableList<T>,
+            mutableCollection: MutableList<T>,
         ) {
             // Check if the field is "packed" (multiple values from the repeated list encoded into a single field). Only
             // repeated values that don't use [WireType.LENGTH_DELIMITED] can be packed. If the value uses
             // [WireType.LENGTH_DELIMITED], then this field can only represent a single value from the repeated list.
             if (decoder is BinaryFieldValueDecoder.Len && valueType.binaryWireType != WireType.LENGTH_DELIMITED) {
                 decoder.decodePackedValues(valueType.binaryWireType) {
-                    mutableValue.add(valueType.decodeFromBinary(it))
+                    mutableCollection.add(valueType.decodeFromBinary(it))
                 }
             } else {
-                mutableValue.add(valueType.decodeFromBinary(decoder))
+                mutableCollection.add(valueType.decodeFromBinary(decoder))
             }
         }
 
         override fun decodeFromBinary(metadata: FieldMetadata, decoder: BinaryFieldValueDecoder): List<T> {
-            return newMutableValue().apply {
+            return newMutableCollection().apply {
                 decodeFromBinary(metadata, decoder, this)
             }.toListField()
         }
@@ -352,28 +360,29 @@ internal sealed class FieldType<KotlinType> {
                 emptyList()
             }
 
-            is JsonFieldValueDecoder.Array -> newMutableValue().apply {
+            is JsonFieldValueDecoder.Array -> newMutableCollection().apply {
                 decoder.forEachValue { arrayValueDecoder ->
-                    when (arrayValueDecoder) {
-                        is JsonFieldValueDecoder.Null ->
-                            throw InvalidProtocolBufferException("JSON repeated values must not contain nulls")
+                    if (arrayValueDecoder is JsonFieldValueDecoder.Null &&
+                        (valueType as? MessageValueType<*, *>)?.descriptor != pbandk.wkt.Value.descriptor &&
+                        (valueType as? Enum)?.enumCompanion != NullValue
+                    ) {
+                        throw InvalidProtocolBufferException("JSON repeated values must not contain nulls")
+                    }
 
-                        else -> {
-                            val value = valueType.decodeFromJson(arrayValueDecoder)
-                            if (value is UnrecognizedEnumValue<*> &&
-                                value.shouldTreatAsUnknownField(arrayValueDecoder.jsonConfig)
-                            ) {
-                                if (arrayValueDecoder.jsonConfig.ignoreUnknownFieldsInInput) {
-                                    // TODO: check if skipping enums in the list with unrecognized values is the
-                                    //  correct behavior
-                                    return@forEachValue
-                                } else {
-                                    throw InvalidProtocolBufferException.unrecognizedEnumValue(metadata.name)
-                                }
-                            }
-                            add(value)
+                    val value = valueType.decodeFromJson(arrayValueDecoder)
+                    if (value is UnrecognizedEnumValue<*> &&
+                        value.shouldTreatAsUnknownField(arrayValueDecoder.jsonConfig)
+                    ) {
+                        if (arrayValueDecoder.jsonConfig.ignoreUnknownFieldsInInput) {
+                            // According to the `IgnoreUnknownEnumStringValue` JSON conformance test, when an unknown
+                            // enum value is encountered in a repeated enum, that value should be skipped. This means
+                            // that round-tripping the repeated enum will cause the list to shorten.
+                            return@forEachValue
+                        } else {
+                            throw InvalidProtocolBufferException.unrecognizedEnumValue(metadata.name)
                         }
                     }
+                    add(value)
                 }
             }.toListField()
 
@@ -381,10 +390,220 @@ internal sealed class FieldType<KotlinType> {
         }
     }
 
+    // Maps don't allow null keys or values according to protobuf semantics. It's not very well-defined in the specs (as
+    // of September 2024 at least), but all of the official language implementations enforce this constraint. The usual
+    // approach taken by the official implementations is to automatically convert null map keys or values received on
+    // the wire (with binary encoding) into the key/value type's "default value". When the map value type is a message,
+    // a default instance of the message is used rather than `null` (which is normally the "default value" for a message
+    // type).
+    //
+    // In effect, this means that map keys and values have implicit presence rather than explicit presence. Even when
+    // the underlying map entry message uses proto2 semantics and would be expected to have explicit presence for the
+    // `key` and `value` fields because they're declared as `optional`. This can lead to some confusing behavior of the
+    // `has_presence` property when using reflection on the underlying map entry message (see
+    // https://github.com/protocolbuffers/protobuf/issues/16549#issuecomment-2158927904 for gory details).
+    //
+    // Furthermore, some implementations (e.g. protobuf-java) will throw an error when parsing JSON input that contains
+    // a map with null values (and they'll never produce JSON output with null map values). So we're forced to never
+    // output null map values in pbandk in order to interoperate with these implementations. See
+    // https://github.com/protocolbuffers/protobuf/issues/5113#issuecomment-419532565 for some extra context.
     class Map<K : Any, V : Any>(
+        mapEntryMessageMetadata: MessageMetadata,
+        internal val keyValueType: ValueType<K>,
+        internal val valueValueType: ValueType<V>,
+    ) : CollectionFieldType<kotlin.collections.Map<K, V>, MutableMap<K, V>>() {
+        private val keyFieldMetadata = FieldMetadata.Standard(
+            messageMetadata = mapEntryMessageMetadata,
+            name = "key",
+            number = 1,
+            jsonName = "key",
+            isOneofMember = false,
+        )
+        private val valueFieldMetadata = FieldMetadata.Standard(
+            messageMetadata = mapEntryMessageMetadata,
+            name = "value",
+            number = 2,
+            jsonName = "value",
+            isOneofMember = false,
+        )
+
+        // See explanation above for why this uses `Singular` rather than `Optional`
+        private val keyFieldType: FieldType<K> = Singular(keyValueType)
+        private val valueFieldType: FieldType<V> = Singular(valueValueType)
+
+        override fun mergeValues(
+            metadata: FieldMetadata,
+            currentValue: kotlin.collections.Map<K, V>,
+            newValue: kotlin.collections.Map<K, V>,
+        ): kotlin.collections.Map<K, V> {
+            return currentValue + newValue
+        }
+
+        override fun mergeItems(
+            metadata: FieldMetadata,
+            collection: MutableMap<K, V>,
+            newItems: kotlin.collections.Map<K, V>
+        ) {
+            collection.putAll(newItems)
+        }
+
+        override fun isDefaultValue(value: kotlin.collections.Map<K, V>) = value.isEmpty()
+
+        override val defaultValue: kotlin.collections.Map<K, V> get() = emptyMap()
+
+        override fun newMutableCollection(): MutableMap<K, V> = mutableMapOf()
+
+        override fun replaceAllItems(collection: MutableMap<K, V>, newItems: kotlin.collections.Map<K, V>) {
+            collection.clear()
+            collection.putAll(newItems)
+        }
+
+        override fun fromMutableCollection(mutableCollection: MutableMap<K, V>): kotlin.collections.Map<K, V> {
+            return mutableCollection.toMap()
+        }
+
+        override fun allowsBinaryWireType(wireType: WireType): Boolean {
+            return wireType == WireType.LENGTH_DELIMITED
+        }
+
+        private fun mapEntryBinarySize(key: K, value: V) = WireValue.Len.sizeWithLenPrefix(
+            keyFieldType.binarySize(keyFieldMetadata, key)
+                    + valueFieldType.binarySize(valueFieldMetadata, value)
+        )
+
+        override fun binarySize(metadata: FieldMetadata, value: kotlin.collections.Map<K, V>): Int {
+            if (value.isEmpty()) return 0
+
+            val tagSize = Tag.size(metadata.number)
+
+            return value.entries.sumOf { (k, v) ->
+                if (v is Message.Enum && v.value == null) {
+                    0
+                } else {
+                    tagSize + mapEntryBinarySize(k, v)
+                }
+            }
+        }
+
+        override fun encodeToBinary(
+            metadata: FieldMetadata,
+            value: kotlin.collections.Map<K, V>,
+            encoder: BinaryFieldEncoder,
+        ) {
+            if (value.isEmpty()) return
+
+            value.forEach { (k, v) ->
+                if (v is Message.Enum && v.value == null) return@forEach
+
+                encoder.encodeField(metadata.number, WireType.LENGTH_DELIMITED) { valueEncoder ->
+                    valueEncoder.encodeLenFields(mapEntryBinarySize(k, v)) { entryFieldEncoder ->
+                        keyFieldType.encodeToBinary(keyFieldMetadata, k, entryFieldEncoder)
+                        valueFieldType.encodeToBinary(valueFieldMetadata, v, entryFieldEncoder)
+                    }
+                }
+            }
+        }
+
+        override fun decodeFromBinary(
+            metadata: FieldMetadata,
+            decoder: BinaryFieldValueDecoder,
+            mutableCollection: MutableMap<K, V>,
+        ) {
+            if (decoder !is BinaryFieldValueDecoder.Len) {
+                throw InvalidProtocolBufferException("Unexpected wire type for message value: ${decoder.wireType}")
+            }
+            decoder.decodeFields { fieldDecoder ->
+                var k: K = keyFieldType.defaultValue
+                var v: V = valueFieldType.defaultValue
+
+                fieldDecoder.forEachField { fieldNumber, valueDecoder ->
+                    when {
+                        valueDecoder.tryDecodeField(keyFieldMetadata, keyFieldType, fieldNumber) { k = it } -> {}
+                        valueDecoder.tryDecodeField(valueFieldMetadata, valueFieldType, fieldNumber) { v = it } -> {}
+                        else -> valueDecoder.skipValue()
+                    }
+                }
+                mutableCollection[k] = v
+            }
+        }
+
+        override fun decodeFromBinary(
+            metadata: FieldMetadata,
+            decoder: BinaryFieldValueDecoder,
+        ): kotlin.collections.Map<K, V> {
+            return newMutableCollection().apply {
+                decodeFromBinary(metadata, decoder, this)
+            }.toMap()
+        }
+
+        override fun encodeToJson(
+            metadata: FieldMetadata,
+            value: kotlin.collections.Map<K, V>,
+            encoder: JsonFieldEncoder,
+        ) {
+            if (!encoder.jsonConfig.outputDefaultValues && value.isEmpty()) return
+
+            encoder.encodeField(encoder.jsonConfig.getFieldJsonName(metadata)) { valueEncoder ->
+                valueEncoder.encodeObject { objectValueEncoder ->
+                    value.forEach { (k, v) ->
+                        objectValueEncoder.encodeField(keyValueType.encodeToJsonMapKey(k)) {
+                            valueValueType.encodeToJson(v, it)
+                        }
+                    }
+                }
+            }
+        }
+
+        override fun decodeFromJson(
+            metadata: FieldMetadata,
+            decoder: JsonFieldValueDecoder,
+        ): kotlin.collections.Map<K, V> = when (decoder) {
+            is JsonFieldValueDecoder.Null -> {
+                decoder.consumeNull()
+                emptyMap()
+            }
+
+            is JsonFieldValueDecoder.Object -> newMutableCollection().apply {
+                decoder.decodeFields { fieldDecoder ->
+                    fieldDecoder.forEachField { fieldKeyDecoder, fieldValueDecoder ->
+                        if (fieldValueDecoder is JsonFieldValueDecoder.Null &&
+                            (valueValueType as? MessageValueType<*, *>)?.descriptor != pbandk.wkt.Value.descriptor &&
+                            (valueValueType as? Enum)?.enumCompanion != NullValue
+                        ) {
+                            fieldValueDecoder.consumeNull()
+                            throw InvalidProtocolBufferException("JSON map values must not be null")
+                        }
+
+                        val mapKey = keyValueType.decodeFromJsonMapKey(fieldKeyDecoder)
+                        val mapValue = valueValueType.decodeFromJson(fieldValueDecoder)
+
+                        if (mapValue is UnrecognizedEnumValue<*> &&
+                            mapValue.shouldTreatAsUnknownField(fieldValueDecoder.jsonConfig)
+                        ) {
+                            if (fieldValueDecoder.jsonConfig.ignoreUnknownFieldsInInput) {
+                                // According to the `IgnoreUnknownEnumStringValue` JSON conformance test, when an
+                                // unknown enum value is encountered in a map that contains enum values, that map entry
+                                // should be skipped. This means that round-tripping the map will cause the number of
+                                // entries in the map to decrease.
+                                return@forEachField
+                            } else {
+                                throw InvalidProtocolBufferException.unrecognizedEnumValue(metadata.name)
+                            }
+                        }
+                        put(mapKey, mapValue)
+                    }
+                }
+            }.toMap()
+
+            else -> throw InvalidProtocolBufferException("Unexpected JSON type for map field: ${decoder.wireType.name}")
+        }
+    }
+
+    /*
+    class MapOld<K : Any, V : Any>(
         internal val keyType: ValueType<K>,
         internal val valueType: ValueType<V>,
-    ) : MutableValue<kotlin.collections.Map<K, V>, MutableMap<K, V>>() {
+    ) : CollectionFieldType<kotlin.collections.Map<K, V>, MutableMap<K, V>>() {
         internal val entryCompanion = MapFieldEntryCompanion(keyType, valueType)
 
         override fun mergeValues(
@@ -399,18 +618,18 @@ internal sealed class FieldType<KotlinType> {
 
         override val defaultValue: kotlin.collections.Map<K, V> get() = MapField.empty()
 
-        override fun newMutableValue(): MutableMapField<K, V> = MutableMapField(entryCompanion)
+        override fun newMutableCollection(): MutableMapField<K, V> = MutableMapField(entryCompanion)
 
-        override fun setMutableValue(mutableValue: MutableMap<K, V>, newValue: kotlin.collections.Map<K, V>) {
-            mutableValue.clear()
-            mutableValue.putAll(newValue)
+        override fun replaceAllItems(collection: MutableMap<K, V>, newItems: kotlin.collections.Map<K, V>) {
+            collection.clear()
+            collection.putAll(newItems)
         }
 
-        override fun fromMutableValue(mutableValue: MutableMap<K, V>): kotlin.collections.Map<K, V> {
-            return if (mutableValue is MutableMapField<K, V>) {
-                mutableValue.toMapField()
+        override fun fromMutableCollection(mutableCollection: MutableMap<K, V>): kotlin.collections.Map<K, V> {
+            return if (mutableCollection is MutableMapField<K, V>) {
+                mutableCollection.toMapField()
             } else {
-                MapField(entryCompanion, mutableValue)
+                MapField(entryCompanion, mutableCollection)
             }
         }
 
@@ -466,9 +685,9 @@ internal sealed class FieldType<KotlinType> {
                 if (entryValue is Message.Enum && entryValue.value == null) return@forEach
 
                 encoder.encodeField(metadata.number, WireType.LENGTH_DELIMITED) { valueEncoder ->
-                    entryCompanion.descriptor.messageValueType.encodeToBinary(
+                    entryCompanion.valueType.encodeToBinary(
                         entry as? MapField.Entry<K, V>
-                            ?: MutableMapFieldEntry(entry.key, entry.value, entryCompanion.descriptor),
+                            ?: MutableMapFieldEntry(entry.key, entry.value, entryCompanion),
                         valueEncoder
                     )
                     //                        val keySize = entry.key
@@ -494,17 +713,17 @@ internal sealed class FieldType<KotlinType> {
         override fun decodeFromBinary(
             metadata: FieldMetadata,
             decoder: BinaryFieldValueDecoder,
-            mutableValue: MutableMap<K, V>,
+            mutableCollection: MutableMap<K, V>,
         ) {
-            val entry = entryCompanion.descriptor.messageValueType.decodeFromBinary(decoder)
-            mutableValue[entry.key] = entry.value
+            val entry = entryCompanion.valueType.decodeFromBinary(decoder)
+            mutableCollection[entry.key] = entry.value
         }
 
         override fun decodeFromBinary(
             metadata: FieldMetadata,
             decoder: BinaryFieldValueDecoder
         ): kotlin.collections.Map<K, V> {
-            return newMutableValue().apply {
+            return newMutableCollection().apply {
                 decodeFromBinary(metadata, decoder, this)
             }.toMapField()
         }
@@ -534,7 +753,7 @@ internal sealed class FieldType<KotlinType> {
                 emptyMap()
             }
 
-            is JsonFieldValueDecoder.Object -> newMutableValue().apply {
+            is JsonFieldValueDecoder.Object -> newMutableCollection().apply {
                 decoder.decodeFields { fieldDecoder ->
                     fieldDecoder.forEachField { fieldKeyDecoder, fieldValueDecoder ->
                         val mapKey = keyType.decodeFromJsonMapKey(fieldKeyDecoder)
@@ -561,6 +780,7 @@ internal sealed class FieldType<KotlinType> {
             else -> throw InvalidProtocolBufferException("Unexpected JSON type for map field: ${decoder.wireType.name}")
         }
     }
+    */
 }
 
 private fun UnrecognizedEnumValue<*>.shouldTreatAsUnknownField(jsonConfig: JsonConfig): Boolean =
@@ -572,7 +792,7 @@ private fun UnrecognizedEnumValue<*>.shouldTreatAsUnknownField(jsonConfig: JsonC
     }
 
 private val ValueType<*>.hasEndTag: Boolean
-    get() = this is MessageValueType<*> && this.encoding == MessageEncoding.DELIMITED
+    get() = this is MessageValueType<*, *> && this.binaryWireType == WireType.START_GROUP
 
 private fun <KotlinType : Any> ValueType<KotlinType>.binarySizeWithTags(value: KotlinType, fieldNumber: Int): Int {
     return (Tag.size(fieldNumber) * if (hasEndTag) 2 else 1) + binarySize(value)

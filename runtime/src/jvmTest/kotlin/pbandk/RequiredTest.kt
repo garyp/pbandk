@@ -9,6 +9,6 @@ class RequiredTest {
     fun testRequiredFieldDefaultValue() {
         val builtJavaObj = pbandk.testpb.java.TestProto2.MessageWithRequiredField.newBuilder().setFoo(false).build()
         val builtKotlinObj = MessageWithRequiredField { foo = false }
-        pbandkJavaRoundtripTest(builtJavaObj, builtKotlinObj, MessageWithRequiredField.Companion)
+        pbandkJavaRoundtripTest(builtJavaObj, builtKotlinObj, MessageWithRequiredField.valueType)
     }
 }

@@ -1,26 +1,25 @@
 package pbandk.internal.types.wkt
 
 import pbandk.InvalidProtocolBufferException
-import pbandk.Message
-import pbandk.gen.AbstractGeneratedMessage
 import pbandk.getTypeNameFromTypeUrl
 import pbandk.getTypePrefixFromTypeUrl
 import pbandk.getTypeUrl
 import pbandk.internal.json.JsonFieldDecoder
 import pbandk.internal.types.MessageValueType
-import pbandk.internal.types.decodeMessageFromJson
-import pbandk.internal.types.findByJsonName
+import pbandk.internal.types.PbandkMessageValueType
+import pbandk.internal.types.customJsonMappings
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import pbandk.pack
 import pbandk.unpack
 import pbandk.wkt.Any
+import pbandk.wkt.MutableAny
 
-internal object Any : MessageValueType<Any>(Any) {
+internal object Any : PbandkMessageValueType<Any, MutableAny>(Any.descriptor) {
     override fun encodeToJson(value: Any, encoder: JsonFieldValueEncoder) {
-        val valueCompanion = encoder.jsonConfig.typeRegistry.getTypeUrl(value.typeUrl)?.messageCompanion
+        val valueType = encoder.jsonConfig.typeRegistry.getTypeUrl(value.typeUrl)
             ?: throw InvalidProtocolBufferException("Type URL not found in type registry: ${value.typeUrl}")
-        encodeToJson(valueCompanion, value, encoder)
+        encodeToJson(valueType, value, encoder)
     }
 
     override fun decodeFromJson(decoder: JsonFieldValueDecoder): Any {
@@ -36,9 +35,9 @@ internal object Any : MessageValueType<Any>(Any) {
                 valueDecoder.decodeAsString()
             } ?: throw InvalidProtocolBufferException("'@type' field not found in google.protobuf.Any message")
 
-            val valueCompanion = fieldDecoder.jsonConfig.typeRegistry.getTypeUrl(typeUrl)?.messageCompanion
+            val valueType = fieldDecoder.jsonConfig.typeRegistry.getTypeUrl(typeUrl)
                 ?: throw InvalidProtocolBufferException("Type URL not found in type registry: $typeUrl")
-            decodeFromJson(valueCompanion, typeUrl, fieldDecoder)
+            decodeFromJson(valueType, typeUrl, fieldDecoder)
         }
     }
 }
@@ -53,47 +52,42 @@ private fun findValueField(keyDecoder: JsonFieldValueDecoder.String): Boolean {
 }
 
 // helper function to make type checker happy
-private inline fun <T : Message> encodeToJson(
-    valueCompanion: Message.Companion<T>,
+private inline fun <T : kotlin.Any> encodeToJson(
+    valueType: MessageValueType<T, *>,
     value: Any,
     encoder: JsonFieldValueEncoder,
 ) {
-    val unpackedMessage = value.unpack(valueCompanion)
+    val unpackedMessage = value.unpack(valueType)
     encoder.encodeObject { fieldEncoder ->
         fieldEncoder.encodeField("@type") { it.encodeString(value.typeUrl) }
-        val customValueType = customJsonMappings[valueCompanion]
+        val customValueType = customJsonMappings[valueType.descriptor]
         if (customValueType != null) {
             @Suppress("UNCHECKED_CAST")
-            customValueType as WktValueType<*, T>
+            customValueType as MessageValueType<*, T>
 
             fieldEncoder.encodeField("value") {
                 customValueType.encodeMessageToJson(unpackedMessage, it)
             }
         } else {
-            @Suppress("UNCHECKED_CAST")
-            unpackedMessage as AbstractGeneratedMessage<T>
-
-            unpackedMessage.fieldDescriptors(ordered = true).forEach { fd ->
-                fd.encodeToJson(fieldEncoder, unpackedMessage)
-            }
+            valueType.encodeFieldsToJson(unpackedMessage, fieldEncoder)
         }
     }
 }
 
 // helper function to make type checker happy
-private inline fun <T : Message> decodeFromJson(
-    valueCompanion: Message.Companion<T>,
+private inline fun <M : kotlin.Any> decodeFromJson(
+    valueType: MessageValueType<M, *>,
     typeUrl: String,
     fieldDecoder: JsonFieldDecoder,
 ): Any {
-    val message = customJsonMappings[valueCompanion]?.let { valueType ->
+    val message = customJsonMappings[valueType.descriptor]?.let { customValueType ->
         @Suppress("UNCHECKED_CAST")
-        valueType as WktValueType<*, T>
+        customValueType as MessageValueType<*, M>
 
-        var message: T? = null
+        var message: M? = null
         fieldDecoder.forEachField { keyDecoder, valueDecoder ->
             if (findValueField(keyDecoder)) {
-                message = valueType.decodeMessageFromJson(valueDecoder)
+                message = customValueType.decodeMessageFromJson(valueDecoder)
             } else {
                 valueDecoder.skipValue()
             }
@@ -101,11 +95,11 @@ private inline fun <T : Message> decodeFromJson(
         message ?: throw InvalidProtocolBufferException(
             "'value' field not found in google.protobuf.Any message containing a '${getTypeNameFromTypeUrl(typeUrl)}' message"
         )
-    } ?: valueCompanion.decodeMessageFromJson(fieldDecoder)
+    } ?: valueType.decodeFieldsFromJson(fieldDecoder)
 
     return if ('/' in typeUrl) {
-        Any.pack(message, getTypePrefixFromTypeUrl(typeUrl))
+        Any.pack(valueType, message, getTypePrefixFromTypeUrl(typeUrl))
     } else {
-        Any.pack(message)
+        Any.pack(valueType, message)
     }
 }

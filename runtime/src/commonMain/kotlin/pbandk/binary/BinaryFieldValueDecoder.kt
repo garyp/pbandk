@@ -1,15 +1,15 @@
 package pbandk.binary
 
 import pbandk.FieldDescriptor
+import pbandk.FieldMetadata
 import pbandk.InvalidProtocolBufferException
-import pbandk.Message
 import pbandk.PublicForGeneratedCode
 import pbandk.UnknownField
 import pbandk.internal.binary.BinaryDecoderContext
 import pbandk.internal.binary.BinaryFieldDecoder
 import pbandk.internal.binary.kotlin.ByteArrayWireReader
-import pbandk.internal.binary.kotlin.LimitingWireReader
 import pbandk.internal.binary.kotlin.WireReader
+import pbandk.internal.types.FieldType
 
 @PublicForGeneratedCode
 public sealed class BinaryFieldValueDecoder {
@@ -24,7 +24,7 @@ public sealed class BinaryFieldValueDecoder {
 
     internal class VarintFromReader(private val wireReader: WireReader) : Varint() {
         override fun decodeValue(): WireValue.Varint {
-            var result: ULong = 0UL
+            var result = 0UL
             for (shift in 0..<64 step 7) {
                 val b = wireReader.readByte()
                 result = result or ((b.toInt() and 0x7F).toULong() shl shift)
@@ -196,7 +196,7 @@ public sealed class BinaryFieldValueDecoder {
         override val fieldDecoder = BinaryFieldDecoder.fromGroupWireValue(value)
     }
 
-    public object EndGroup : BinaryFieldValueDecoder() {
+    public data object EndGroup : BinaryFieldValueDecoder() {
         override val wireType: WireType get() = WireType.END_GROUP
         public fun decodeValue(): WireValue.EndGroup = WireValue.EndGroup
         override fun skipValue() {}
@@ -221,8 +221,8 @@ public sealed class BinaryFieldValueDecoder {
 }
 
 /** Returns `true` if field value was consumed, either by calling [valueBlock] or by skipping the field. */
-internal inline fun <M : Message, T> BinaryFieldValueDecoder.tryDecodeField(
-    fieldDescriptor: FieldDescriptor<M, T>,
+internal inline fun <M : Any, T> BinaryFieldValueDecoder.tryDecodeField(
+    fieldDescriptor: FieldDescriptor<M, *, T>,
     fieldNumber: Int,
     valueBlock: (T) -> Unit,
 ): Boolean = when {
@@ -237,6 +237,28 @@ internal inline fun <M : Message, T> BinaryFieldValueDecoder.tryDecodeField(
 
     else -> {
         valueBlock(fieldDescriptor.fieldType.decodeFromBinary(fieldDescriptor.metadata, this))
+        true
+    }
+}
+
+/** Returns `true` if field value was consumed, either by calling [valueBlock] or by skipping the field. */
+internal inline fun <T> BinaryFieldValueDecoder.tryDecodeField(
+    fieldMetadata: FieldMetadata,
+    fieldType: FieldType<T>,
+    fieldNumber: Int,
+    valueBlock: (T) -> Unit,
+): Boolean = when {
+    fieldMetadata.number != fieldNumber -> {
+        false
+    }
+
+    !fieldType.allowsBinaryWireType(wireType) -> {
+        skipValue()
+        true
+    }
+
+    else -> {
+        valueBlock(fieldType.decodeFromBinary(fieldMetadata, this))
         true
     }
 }

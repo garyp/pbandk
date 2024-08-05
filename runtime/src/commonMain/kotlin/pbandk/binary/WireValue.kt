@@ -147,7 +147,7 @@ public sealed interface WireValue {
         override val size: Int get() = value.sumOf { it.size }
     }
 
-    public object EndGroup : WireValue {
+    public data object EndGroup : WireValue {
         override val wireType: WireType get() = WireType.END_GROUP
 
         override val size: Int get() = 0

@@ -16,7 +16,7 @@ import kotlin.test.assertEquals
 
 class WellKnownTypesTest {
 
-    private fun <T : Message> Message.Companion<T>.assertMessageEquals(msg: T, pbMsg: MessageLite) {
+    private fun <T : Message> Message.Companion<T, *>.assertMessageEquals(msg: T, pbMsg: MessageLite) {
         // First a simple check of their byte arrays
         val pbBytes = pbMsg.toByteArray()
         assertContentEquals(pbBytes, msg.encodeToByteArray())

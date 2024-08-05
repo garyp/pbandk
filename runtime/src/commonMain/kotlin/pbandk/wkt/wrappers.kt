@@ -419,10 +419,9 @@ public sealed interface BoolValue : pbandk.Message {
             syntax = pbandk.wkt.Syntax.PROTO3,
         )
 
-        override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.BoolValue> by lazy {
+        override val descriptor: pbandk.MessageDescriptor<pbandk.wkt.BoolValue, pbandk.wkt.MutableBoolValue> by lazy {
             pbandk.MessageDescriptor.of(
                 metadata = messageMetadata,
-                messageClass = pbandk.wkt.BoolValue::class,
                 messageCompanion = this,
                 builder = ::BoolValue,
                 fields = listOf(

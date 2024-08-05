@@ -270,7 +270,8 @@ public sealed interface Proto3PresenceMain : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.testpb.Proto3PresenceMain>() {
+    public companion object :
+        pbandk.Message.Companion<pbandk.testpb.Proto3PresenceMain, pbandk.testpb.MutableProto3PresenceMain>() {
         override val defaultInstance: pbandk.testpb.Proto3PresenceMain by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.testpb.Proto3PresenceMain {}
         }
@@ -280,7 +281,7 @@ public sealed interface Proto3PresenceMain : pbandk.Message {
             syntax = pbandk.wkt.Syntax.PROTO3,
         )
 
-        override val descriptor: pbandk.MessageDescriptor<pbandk.testpb.Proto3PresenceMain> by lazy {
+        override val descriptor: pbandk.MessageDescriptor<pbandk.testpb.Proto3PresenceMain, pbandk.testpb.MutableProto3PresenceMain> by lazy {
             pbandk.MessageDescriptor.of(
                 metadata = messageMetadata,
                 messageClass = pbandk.testpb.Proto3PresenceMain::class,

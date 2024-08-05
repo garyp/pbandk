@@ -128,7 +128,7 @@ public open class CodeGenerator(
 
     protected fun writeMessageType(type: File.Type.Message) {
         // There's no need to generate code for the messages that back every protobuf map field because those fields
-        // all use `MapField.Entry` as their message class.
+        // use a custom `FieldType.Map` class that optimizes away the need for a map entry message type.
         if (type.mapEntry) return
 
         val messageInterface = if (type.isExtendable) {
@@ -314,10 +314,8 @@ public open class CodeGenerator(
                             line("addFields${index}()")
                         }
                     }
-                    if (needToChunkOneofs) {
-                        oneofFields.chunked(chunkSize).forEachIndexed { index, _ ->
-                            line("addOneofs${index}()")
-                        }
+                    oneofFields.chunked(chunkSize).forEachIndexed { index, _ ->
+                        line("addOneofs${index}()")
                     }
                 }.line("}")
 
@@ -334,21 +332,19 @@ public open class CodeGenerator(
                     }
                 }
 
-                if (needToChunkOneofs) {
-                    oneofFields.chunked(chunkSize).forEachIndexed { index, chunk ->
-                        line()
-                        line("private fun addOneofs${index}() {").indented {
-                            chunk.forEach { field ->
-                                lineEnd("${field.descriptorName.simple} =").indented {
-                                    writeOneofDescriptorConstructor(
-                                        field,
-                                        type.kotlinName,
-                                        "${type.kotlinName.fullWithPackage}::descriptor"
-                                    )
-                                }
+                oneofFields.chunked(chunkSize).forEachIndexed { index, chunk ->
+                    line()
+                    line("private fun addOneofs${index}() {").indented {
+                        chunk.forEach { field ->
+                            lineEnd("${field.descriptorName.simple} =").indented {
+                                writeOneofDescriptorConstructor(
+                                    field,
+                                    type.kotlinName,
+                                    "${type.kotlinName.fullWithPackage}::descriptor"
+                                )
                             }
-                        }.line("}")
-                    }
+                        }
+                    }.line("}")
                 }
             }
         }.line("}")
@@ -373,6 +369,10 @@ public open class CodeGenerator(
             line("number = ${field.number},")
             if (field is File.Field.Numbered.Standard && field.map) {
                 val mapEntry = field.mapEntry()!!
+                line("mapEntryMessageMetadata = pbandk.MessageMetadata(").indented {
+                    line("fullName = \"${mapEntry.name.fullWithPackage.removePrefix(".")}\",")
+                    line("syntax = pbandk.wkt.Syntax.PROTO${file.version},")
+                }.line("),")
                 line("keyType = ${mapEntry.mapEntryKeyField!!.valueType(typeName)},")
                 line("valueType = ${mapEntry.mapEntryValueField!!.valueType(typeName)},")
             } else {
@@ -432,14 +432,13 @@ public open class CodeGenerator(
         // Do not use `LazyThreadSafetyMode.PUBLICATION` for this value because we have code in the runtime library
         // that depends on the `descriptor` instance for any given message type being a singleton (e.g. in some of the
         // methods of `GeneratedMessage`).
-        line("override val descriptor: pbandk.MessageDescriptor<${type.kotlinName.fullWithPackage}> by lazy {").indented {
+        line("override val descriptor: pbandk.MessageDescriptor<${type.kotlinName.fullWithPackage}, ${type.kotlinName.mutableTypeName.fullWithPackage}> by lazy {").indented {
             val builderName = type.kotlinName.builderName
             val (oneofFields, nonOneofFields) = type.fields.partition { it is File.Field.OneOf }
 
-            line("pbandk.MessageDescriptor.of(").indented {
+            line("pbandk.messageDescriptor(").indented {
                 line("metadata = messageMetadata,")
                 line("messageClass = ${type.kotlinName.fullWithPackage}::class,")
-                line("messageCompanion = this,")
                 line("builder = ${builderName.parent?.fullWithPackage.orEmpty()}::${builderName.simple},")
                 if (nonOneofFields.isNotEmpty()) {
                     line("fields = listOf(").indented {
@@ -809,9 +808,9 @@ public open class CodeGenerator(
                         }.line("},")
                     } else {
                         lineMid(field.kotlinName.simple)
-                        // TODO: update this to use `FieldType.fromMutableValue()` instead
+                        // TODO: update this to use `FieldType.fromMutableCollection()` instead
                         when {
-                            field is File.Field.Numbered.Standard && field.map -> lineMid(".toMapField()")
+                            field is File.Field.Numbered.Standard && field.map -> lineMid(".toMap()")
                             field is File.Field.Numbered && field.repeated -> lineMid(".toListField()")
                         }
                         lineEnd(",")
@@ -929,13 +928,7 @@ public open class CodeGenerator(
         impl: Boolean = false
     ): String = when {
         this is File.Field.Numbered.Standard && map -> mapEntry()!!.let {
-            val typeName = when {
-                impl && mutable -> "pbandk.gen.MutableMapField"
-                impl && !mutable -> "pbandk.gen.MapField"
-                !impl && mutable -> "MutableMap"
-                !impl && !mutable -> "Map"
-                else -> error("Can't get here")
-            }
+            val typeName = if (mutable) "MutableMap" else "Map"
             "$typeName<${it.mapEntryKeyKotlinType}, ${it.mapEntryValueKotlinType}>"
         }
 
@@ -944,8 +937,7 @@ public open class CodeGenerator(
                 impl && mutable -> "pbandk.gen.MutableListField"
                 impl && !mutable -> "pbandk.gen.ListField"
                 !impl && mutable -> "MutableList"
-                !impl && !mutable -> "List"
-                else -> error("Can't get here")
+                else -> "List"
             }
             "$typeName<$kotlinQualifiedTypeName>"
         }
@@ -1023,12 +1015,7 @@ public open class CodeGenerator(
         allowNulls: Boolean = true,
         mutable: Boolean = false
     ): String = when {
-        this is File.Field.Numbered.Standard && map -> if (mutable) {
-            "pbandk.gen.MutableMapField(${descriptorName.fullWithPackage})"
-        } else {
-            "emptyMap()"
-        }
-
+        this is File.Field.Numbered.Standard && map -> if (mutable) "mutableMapOf()" else "emptyMap()"
         repeated -> if (mutable) "pbandk.gen.MutableListField(${descriptorName.fullWithPackage})" else "emptyList()"
         allowNulls && hasPresence && !required -> "null"
         type == File.Field.Type.ENUM -> "$kotlinQualifiedTypeName.fromValue(0)"

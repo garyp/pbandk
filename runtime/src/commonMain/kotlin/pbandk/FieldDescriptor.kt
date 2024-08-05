@@ -7,12 +7,12 @@ import pbandk.internal.json.JsonFieldEncoder
 import pbandk.internal.types.FieldType
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.types.ValueType
+import pbandk.wkt.FeatureSet
 import pbandk.wkt.FieldOptions
 import pbandk.wkt.Syntax
 import pbandk.wkt.orDefault
 import kotlin.js.JsExport
 import kotlin.reflect.KMutableProperty1
-import kotlin.reflect.KProperty0
 import kotlin.reflect.KProperty1
 
 public sealed class FieldMetadata(
@@ -29,6 +29,12 @@ public sealed class FieldMetadata(
     // class, which has its own [FieldDescriptor]s that it tries to initialize.
     @ExperimentalProtoReflection
     public val options: FieldOptions get() = _options.orDefault()
+
+    internal val messageEncoding: MessageEncoding = when (val encoding = _options?.features?.messageEncoding) {
+        null, FeatureSet.MessageEncoding.LENGTH_PREFIXED -> MessageEncoding.LENGTH_PREFIXED
+        FeatureSet.MessageEncoding.DELIMITED -> MessageEncoding.DELIMITED
+        else -> throw IllegalStateException("Unexpected value for features.message_encoding=$encoding on message '$name'")
+    }
 
     /**
      * The field's fully-qualified name.
@@ -116,10 +122,10 @@ private fun isFieldPacked(
 }
 
 @Export
-public sealed class FieldDescriptor<M : Message, V> private constructor(
-    getMessageDescriptor: () -> MessageDescriptor<M>,
+public sealed class FieldDescriptor<M : Any, MM : Any, V> private constructor(
+    internal val messageDescriptor: MessageDescriptor<M, MM>,
     internal val metadata: FieldMetadata,
-) : Comparable<FieldDescriptor<M, *>> {
+) : Comparable<FieldDescriptor<M, MM, *>> {
     internal abstract val fieldType: FieldType<V>
 
     /** The field's unqualified name. */
@@ -135,7 +141,7 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
     // At the time that the [FieldDescriptor] constructor is called, the parent [MessageDescriptor] has not been
     // constructed yet. This is because this [FieldDescriptor] is one of the parameters that will be passed to the
     // [MessageDescriptor] constructor. To avoid the circular dependency, this property is declared lazy.
-    internal val messageDescriptor: MessageDescriptor<M> by lazy(LazyThreadSafetyMode.PUBLICATION) { getMessageDescriptor() }
+//    internal val messageDescriptor: MessageDescriptor<M, MM> by lazy(LazyThreadSafetyMode.PUBLICATION) { getMessageDescriptor() }
 
     /**
      * The field's fully-qualified name.
@@ -167,7 +173,7 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
     /**
      * FieldDescriptors are sorted by their field number.
      */
-    override fun compareTo(other: FieldDescriptor<M, *>): Int {
+    override fun compareTo(other: FieldDescriptor<M, MM, *>): Int {
         require(messageDescriptor == other.messageDescriptor) {
             "Only FieldDescriptors of the same message can be compared"
         }
@@ -180,9 +186,9 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
     @JsExport.Ignore
     @PublicForGeneratedCode
-    public abstract fun setValue(message: MutableMessage<M>, value: V)
+    public abstract fun setValue(message: MM, value: V)
 
-    internal open fun mergeValues(message: M, otherMessage: M, destination: MutableMessage<M>) {
+    internal open fun mergeValues(message: M, otherMessage: M, destination: MM) {
         val value = getValue(message)
         val otherValue = getValue(otherMessage)
         val newValue = fieldType.mergeValues(metadata, value, otherValue)
@@ -201,8 +207,9 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         fieldType.encodeToBinary(metadata, value, encoder)
     }
 
-    internal open fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MutableMessage<M>) {
+    internal open fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MM) {
         @Suppress("UNCHECKED_CAST")
+        // TODO: can't assume that message is M now that we've changed the M and MM supertype from Message to Any
         val currentValue = getValue(message as M)
         val decodedValue = fieldType.decodeFromBinary(metadata, decoder)
         val newValue = fieldType.mergeValues(metadata, currentValue, decodedValue)
@@ -216,27 +223,35 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         fieldType.encodeToJson(metadata, value, encoder)
     }
 
-    internal open fun decodeFromJson(decoder: JsonFieldValueDecoder, message: MutableMessage<M>) {
+    internal open fun decodeFromJson(decoder: JsonFieldValueDecoder, message: MM) {
         setValue(message, fieldType.decodeFromJson(metadata, decoder))
     }
 
-    public abstract class MutableValue<M : Message, V, MV : Any>(
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+    public sealed class MutableValue<M : Any, MM : Any, V, MV : Any>(
+        messageDescriptor: MessageDescriptor<M, MM>,
         metadata: FieldMetadata
-    ) : FieldDescriptor<M, V>(
-        getMessageDescriptor,
-        metadata,
-    ) {
-        abstract override val fieldType: FieldType.MutableValue<V, MV>
+    ) : FieldDescriptor<M, MM, V>(messageDescriptor, metadata) {
+        abstract override val fieldType: FieldType.CollectionFieldType<V, MV>
 
         @JsExport.Ignore
         @PublicForGeneratedCode
-        public abstract fun getMutableValue(message: MutableMessage<M>): MV
+        public abstract fun getMutableValue(message: MM): MV
+
+        override fun mergeValues(message: M, otherMessage: M, destination: MM) {
+            fieldType.mergeItems(metadata, getMutableValue(destination), getValue(otherMessage))
+        }
+
+        override fun setValue(message: MM, value: V) {
+            fieldType.replaceAllItems(getMutableValue(message), value)
+        }
+
+        override fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MM) {
+            fieldType.decodeFromBinary(metadata, decoder, getMutableValue(message))
+        }
     }
 
-    internal class Required<M : Message, MM : MutableMessage<M>, V : Any> internal constructor(
-        messageMetadata: MessageMetadata,
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+    internal class Required<M : Any, MM : Any, V : Any> internal constructor(
+        messageDescriptor: MessageDescriptor<M, MM>,
         name: String,
         number: Int,
         jsonName: String,
@@ -244,10 +259,10 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         private val property: KProperty1<M, V>,
         private val mutableProperty: KMutableProperty1<MM, V>,
         options: FieldOptions? = null,
-    ) : FieldDescriptor<M, V>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : FieldDescriptor<M, MM, V>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Standard(
-            messageMetadata = messageMetadata,
+            messageMetadata = messageDescriptor.metadata,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -259,12 +274,11 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         override fun getValue(message: M): V = property.get(message)
 
-        override fun setValue(message: MutableMessage<M>, value: V) {
-            @Suppress("UNCHECKED_CAST")
-            mutableProperty.set(message as MM, value)
+        override fun setValue(message: MM, value: V) {
+            mutableProperty.set(message, value)
         }
 
-        override fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MutableMessage<M>) {
+        override fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MM) {
             val decodedValue = fieldType.decodeFromBinary(metadata, decoder)
 
             // The `getValue()` might throw an exception if the field is required and this is the first instance of it
@@ -287,21 +301,20 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         }
     }
 
-    internal class Optional<M : Message, MM : MutableMessage<M>, V : Any>(
-        messageMetadata: MessageMetadata,
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+    internal class Optional<M : Any, MM : Any, V : Any>(
+        messageDescriptor: MessageDescriptor<M, MM>,
         name: String,
         number: Int,
         jsonName: String,
         valueType: ValueType<V>,
-        private val property: KProperty1<M, V?>,
-        private val mutableProperty: KMutableProperty1<MM, V?>,
+        private val property: (M) -> V?,
+        private val mutableProperty: (MM, V?) -> Unit,
         options: FieldOptions? = null,
         isOneofMember: Boolean = false,
-    ) : FieldDescriptor<M, V?>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : FieldDescriptor<M, MM, V?>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Standard(
-            messageMetadata = messageMetadata,
+            messageMetadata = messageDescriptor.metadata,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -311,28 +324,26 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
     ) {
         override val fieldType = FieldType.Optional(valueType)
 
-        override fun getValue(message: M): V? = property.get(message)
+        override fun getValue(message: M): V? = property(message)
 
-        override fun setValue(message: MutableMessage<M>, value: V?) {
-            @Suppress("UNCHECKED_CAST")
-            mutableProperty.set(message as MM, value)
+        override fun setValue(message: MM, value: V?) {
+            mutableProperty(message, value)
         }
     }
 
-    internal class Singular<M : Message, MM : MutableMessage<M>, V : Any>(
-        messageMetadata: MessageMetadata,
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+    internal class Singular<M : Any, MM : Any, V : Any>(
+        messageDescriptor: MessageDescriptor<M, MM>,
         name: String,
         number: Int,
         jsonName: String,
         private val valueType: ValueType<V>,
-        private val property: KProperty1<M, V>,
-        private val mutableProperty: KMutableProperty1<MM, V>,
+        private val property: (M) -> V,
+        private val mutableProperty: (MM, V) -> Unit,
         options: FieldOptions? = null,
-    ) : FieldDescriptor<M, V>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : FieldDescriptor<M, MM, V>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Standard(
-            messageMetadata = messageMetadata,
+            messageMetadata = messageDescriptor.metadata,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -343,18 +354,16 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         override val fieldType = FieldType.Singular(valueType)
 
         override fun getValue(message: M): V {
-            return property.get(message)
+            return property(message)
         }
 
-        override fun setValue(message: MutableMessage<M>, value: V) {
-            @Suppress("UNCHECKED_CAST")
-            mutableProperty.set(message as MM, value)
+        override fun setValue(message: MM, value: V) {
+            mutableProperty(message, value)
         }
     }
 
-    internal class Repeated<M : Message, MM : MutableMessage<M>, V : Any>(
-        messageMetadata: MessageMetadata,
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+    internal class Repeated<M : Any, MM : Any, V : Any>(
+        messageDescriptor: MessageDescriptor<M, MM>,
         name: String,
         number: Int,
         jsonName: String,
@@ -362,10 +371,10 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         private val property: KProperty1<M, List<V>>,
         private val mutableProperty: KProperty1<MM, MutableList<V>>,
         options: FieldOptions? = null,
-    ) : FieldDescriptor.MutableValue<M, List<V>, MutableList<V>>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : MutableValue<M, MM, List<V>, MutableList<V>>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Standard(
-            messageMetadata = messageMetadata,
+            messageMetadata = messageDescriptor.metadata,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -373,46 +382,29 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
             options = options,
         ),
     ) {
-        override val fieldType = FieldType.Repeated(valueType, isFieldPacked(options, messageMetadata, valueType))
+        override val fieldType =
+            FieldType.Repeated(valueType, isFieldPacked(options, messageDescriptor.metadata, valueType))
 
         override fun getValue(message: M): List<V> = property.get(message)
 
-        override fun getMutableValue(message: MutableMessage<M>): MutableList<V> =
-            @Suppress("UNCHECKED_CAST")
-            mutableProperty.get(message as MM)
-
-        override fun setValue(message: MutableMessage<M>, value: List<V>) {
-            fieldType.setMutableValue(getMutableValue(message), value)
-        }
-
-        override fun mergeValues(message: M, otherMessage: M, destination: MutableMessage<M>) {
-            val otherValue = getValue(otherMessage)
-            if (otherValue.isNotEmpty()) {
-                getMutableValue(destination).addAll(otherValue)
-            }
-        }
-
-        override fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MutableMessage<M>) {
-            val mutableList = getMutableValue(message)
-            fieldType.decodeFromBinary(metadata, decoder, mutableList)
-        }
+        override fun getMutableValue(message: MM): MutableList<V> = mutableProperty.get(message)
     }
 
-    internal class Map<M : Message, MM : MutableMessage<M>, K : Any, V : Any>(
-        messageMetadata: MessageMetadata,
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+    internal class Map<M : Any, MM : Any, K : Any, V : Any>(
+        messageDescriptor: MessageDescriptor<M, MM>,
         name: String,
         number: Int,
         jsonName: String,
         keyType: ValueType<K>,
         valueType: ValueType<V>,
+        mapEntryMessageMetadata: MessageMetadata,
         private val property: KProperty1<M, kotlin.collections.Map<K, V>>,
         private val mutableProperty: KProperty1<MM, MutableMap<K, V>>,
         options: FieldOptions? = null,
-    ) : FieldDescriptor.MutableValue<M, kotlin.collections.Map<K, V>, MutableMap<K, V>>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : MutableValue<M, MM, kotlin.collections.Map<K, V>, MutableMap<K, V>>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Standard(
-            messageMetadata = messageMetadata,
+            messageMetadata = messageDescriptor.metadata,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -420,49 +412,22 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
             options = options,
         ),
     ) {
-        override val fieldType = FieldType.Map(keyType, valueType)
+        override val fieldType = FieldType.Map(mapEntryMessageMetadata, keyType, valueType)
 
         override fun getValue(message: M): kotlin.collections.Map<K, V> = property.get(message)
 
-        override fun getMutableValue(message: MutableMessage<M>): MutableMap<K, V> =
-            @Suppress("UNCHECKED_CAST")
-            mutableProperty.get(message as MM)
-
-        override fun setValue(message: MutableMessage<M>, value: kotlin.collections.Map<K, V>) {
-            fieldType.setMutableValue(getMutableValue(message), value)
-        }
-
-        override fun mergeValues(message: M, otherMessage: M, destination: MutableMessage<M>) {
-            val otherValue = getValue(otherMessage)
-            if (otherValue.isNotEmpty()) {
-                getMutableValue(destination).putAll(otherValue)
-            }
-        }
-
-        override fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MutableMessage<M>) {
-            val mutableMap = getMutableValue(message)
-
-            fieldType.decodeFromBinary(metadata, decoder, mutableMap)
-
-            // val entryCompanion = MapField.Entry.Companion<K, V>(keyType, valueType)
-            // val entry = entryCompanion.descriptor.valueType.decodeFromBinary(decoder)
-            // if (mutableMap is MutableMapField<K, V>) {
-            //     mutableMap.put(entry)
-            // } else {
-            //     mutableMap[entry.key] = entry.value
-            // }
-        }
+        override fun getMutableValue(message: MM): MutableMap<K, V> = mutableProperty.get(message)
     }
 
     internal class Extension<M : ExtendableMessage<M>, MM : MutableExtendableMessage<M>, V : Any>(
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+        messageDescriptor: MessageDescriptor<M, MM>,
         extensionName: String,
         number: Int,
         jsonName: String,
         valueType: ValueType<V>,
         options: FieldOptions? = null,
-    ) : FieldDescriptor<M, V?>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : FieldDescriptor<M, MM, V?>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Extension(
             extensionName = extensionName,
             number = number,
@@ -474,21 +439,20 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         override fun getValue(message: M): V? = message.extensionFields.getOrDefault(this)
 
-        override fun setValue(message: MutableMessage<M>, value: V?) {
-            require(message is MutableExtendableMessage<M>)
+        override fun setValue(message: MM, value: V?) {
             message.extensionFields[this] = value
         }
     }
 
     internal class RepeatedExtension<M : ExtendableMessage<M>, MM : MutableExtendableMessage<M>, V : Any>(
-        getMessageDescriptor: () -> MessageDescriptor<M>,
+        messageDescriptor: MessageDescriptor<M, MM>,
         extensionName: String,
         number: Int,
         jsonName: String,
         valueType: ValueType<V>,
         options: FieldOptions? = null,
-    ) : FieldDescriptor.MutableValue<M, List<V>, MutableList<V>>(
-        getMessageDescriptor = getMessageDescriptor,
+    ) : MutableValue<M, MM, List<V>, MutableList<V>>(
+        messageDescriptor = messageDescriptor,
         metadata = FieldMetadata.Extension(
             extensionName = extensionName,
             number = number,
@@ -501,124 +465,14 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         override fun getValue(message: M): List<V> = message.extensionFields.getOrDefault(this)
 
-        override fun getMutableValue(message: MutableMessage<M>): MutableList<V> {
-            require(message is MutableExtendableMessage<M>)
-            return message.extensionFields.getOrCreate(this)
-        }
-
-        override fun setValue(message: MutableMessage<M>, value: List<V>) {
-            fieldType.setMutableValue(getMutableValue(message), value)
-        }
-
-        override fun mergeValues(message: M, otherMessage: M, destination: MutableMessage<M>) {
-            val otherValue = getValue(otherMessage)
-            if (otherValue.isNotEmpty()) {
-                getMutableValue(destination).addAll(otherValue)
-            }
-        }
-
-        override fun decodeFromBinary(decoder: BinaryFieldValueDecoder, message: MutableMessage<M>) {
-            val mutableList = getMutableValue(message)
-            fieldType.decodeFromBinary(metadata, decoder, mutableList)
-        }
+        override fun getMutableValue(message: MM): MutableList<V> = message.extensionFields.getOrCreate(this)
     }
-
-    // public class Repeated<T : Any>(internal val valueType: Type, public val packed: Boolean = false) : Type() {
-    //     override fun canonicalValue(value: Any): Any = when (value) {
-    //         is ListField<*> -> {
-    //             require(value.valueType == valueType)
-    //             value
-    //         }
-    //
-    //         is MutableListField<*> -> {
-    //             require(value.valueType == valueType)
-    //             value.toListField()
-    //         }
-    //
-    //         is Collection<*> -> {
-    //             require(value.all { valueType.kotlinType.isInstance(it) })
-    //             @Suppress("UNCHECKED_CAST")
-    //             ListField(valueType, value as Collection<T>)
-    //         }
-    //
-    //         else -> throw IllegalArgumentException("value must be a Collection")
-    //     }
-    //
-    //     override fun canonicalMutableValue(value: Any): Any = when (value) {
-    //         is MutableListField<*> -> {
-    //             require(value.valueType == valueType)
-    //             MutableListField(valueType, value)
-    //         }
-    //
-    //         is ListField<*> -> {
-    //             require(value.valueType == valueType)
-    //             MutableListField(valueType, value)
-    //         }
-    //
-    //         is Collection<*> -> {
-    //             require(value.all { valueType.kotlinType.isInstance(it) })
-    //             @Suppress("UNCHECKED_CAST")
-    //             MutableListField(valueType, value as Collection<T>)
-    //         }
-    //
-    //         else -> throw IllegalArgumentException("value must be a Collection")
-    //     }
-    // }
-
-    // public class Map<K : Any, V : Any>(keyType: Type, valueType: Type) : Type() {
-    //     override fun canonicalValue(value: Any): Any = when (value) {
-    //         is MapField<*, *> -> {
-    //             require(value.entryCompanion == entryCompanion)
-    //             value
-    //         }
-    //
-    //         is MutableMapField<*, *> -> {
-    //             require(value.entryCompanion == entryCompanion)
-    //             value.toMapField()
-    //         }
-    //
-    //         is kotlin.collections.Map<*, *> -> {
-    //             require(value.all {
-    //                 entryCompanion.keyType.kotlinType.isInstance(it.key) &&
-    //                         entryCompanion.valueType.kotlinType.isInstance(it.value)
-    //             })
-    //             @Suppress("UNCHECKED_CAST")
-    //             MapField(entryCompanion, value as kotlin.collections.Map<K, V>)
-    //         }
-    //
-    //         else -> throw IllegalArgumentException("value must be a Map")
-    //     }
-    //
-    //     @Suppress("UNCHECKED_CAST")
-    //     override fun canonicalMutableValue(value: Any): Any = when (value) {
-    //         is MutableMapField<*, *> -> {
-    //             require(value.entryCompanion == entryCompanion)
-    //             MutableMapField(entryCompanion).apply { putAll(value as MutableMapField<K, V>) }
-    //         }
-    //
-    //         is MapField<*, *> -> {
-    //             require(value.entryCompanion == entryCompanion)
-    //             MutableMapField(entryCompanion).apply { putAll(value as MapField<K, V>) }
-    //         }
-    //
-    //         is kotlin.collections.Map<*, *> -> {
-    //             require(value.all {
-    //                 entryCompanion.keyType.kotlinType.isInstance(it.key) &&
-    //                         entryCompanion.valueType.kotlinType.isInstance(it.value)
-    //             })
-    //             MutableMapField(entryCompanion).apply { putAll(value as kotlin.collections.Map<K, V>) }
-    //         }
-    //
-    //         else -> throw IllegalArgumentException("value must be a Map")
-    //     }
-    // }
 
     public companion object {
         @JsExport.Ignore
         @PublicForGeneratedCode
         public fun <M : Message, MM : MutableMessage<M>, V : Any> ofRequired(
-            messageMetadata: MessageMetadata,
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+            messageDescriptor: MessageDescriptor<M, MM>,
             name: String,
             number: Int,
             valueType: ValueType<V>,
@@ -626,9 +480,8 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
             mutableValue: KMutableProperty1<MM, V>,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor<M, V> = Required(
-            messageMetadata = messageMetadata,
-            getMessageDescriptor = messageDescriptor::get,
+        ): FieldDescriptor<M, MM, V> = Required(
+            messageDescriptor = messageDescriptor,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -640,19 +493,17 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         @JsExport.Ignore
         @PublicForGeneratedCode
-        public fun <M : Message, MM : MutableMessage<M>, V : Any> ofOptional(
-            messageMetadata: MessageMetadata,
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+        public fun <M : Any, MM : Any, V : Any> ofOptional(
+            messageDescriptor: MessageDescriptor<M, MM>,
             name: String,
             number: Int,
             valueType: ValueType<V>,
-            value: KProperty1<M, V?>,
-            mutableValue: KMutableProperty1<MM, V?>,
+            value: (M) -> V?,
+            mutableValue: (MM, V?) -> Unit,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor<M, V?> = Optional(
-            messageMetadata = messageMetadata,
-            getMessageDescriptor = messageDescriptor::get,
+        ): FieldDescriptor<M, MM, V?> = Optional(
+            messageDescriptor = messageDescriptor,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -664,19 +515,17 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         @JsExport.Ignore
         @PublicForGeneratedCode
-        public fun <M : Message, MM : MutableMessage<M>, V : Any> ofSingular(
-            messageMetadata: MessageMetadata,
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+        public fun <M : Any, MM : Any, V : Any> ofSingular(
+            messageDescriptor: MessageDescriptor<M, MM>,
             name: String,
             number: Int,
             valueType: ValueType<V>,
-            value: KProperty1<M, V>,
-            mutableValue: KMutableProperty1<MM, V>,
+            value: (M) -> V,
+            mutableValue: (MM, V) -> Unit,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor<M, V> = Singular(
-            messageMetadata = messageMetadata,
-            getMessageDescriptor = messageDescriptor::get,
+        ): FieldDescriptor<M, MM, V> = Singular(
+            messageDescriptor = messageDescriptor,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -689,8 +538,7 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         @JsExport.Ignore
         @PublicForGeneratedCode
         public fun <M : Message, MM : MutableMessage<M>, V : Any> ofOneof(
-            messageMetadata: MessageMetadata,
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+            messageDescriptor: MessageDescriptor<M, MM>,
             name: String,
             number: Int,
             valueType: ValueType<V>,
@@ -698,24 +546,22 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
             mutableValue: KMutableProperty1<MM, V?>,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor<M, V?> = Optional(
-            messageMetadata = messageMetadata,
-            getMessageDescriptor = messageDescriptor::get,
+        ): FieldDescriptor<M, MM, V?> = Optional(
+            messageDescriptor = messageDescriptor,
             name = name,
             number = number,
             jsonName = jsonName,
             options = options,
             valueType = valueType,
-            property = value,
-            mutableProperty = mutableValue,
+            property = value::get,
+            mutableProperty = mutableValue::set,
             isOneofMember = true,
         )
 
         @JsExport.Ignore
         @PublicForGeneratedCode
         public fun <M : Message, MM : MutableMessage<M>, T : Any> ofRepeated(
-            messageMetadata: MessageMetadata,
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+            messageDescriptor: MessageDescriptor<M, MM>,
             name: String,
             number: Int,
             valueType: ValueType<T>,
@@ -723,9 +569,8 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
             mutableValue: KProperty1<MM, MutableList<T>>,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor.MutableValue<M, List<T>, MutableList<T>> = Repeated(
-            messageMetadata = messageMetadata,
-            getMessageDescriptor = messageDescriptor::get,
+        ): MutableValue<M, MM, List<T>, MutableList<T>> = Repeated(
+            messageDescriptor = messageDescriptor,
             name = name,
             number = number,
             jsonName = jsonName,
@@ -738,23 +583,23 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
         @JsExport.Ignore
         @PublicForGeneratedCode
         public fun <M : Message, MM : MutableMessage<M>, K : Any, V : Any> ofMap(
-            messageMetadata: MessageMetadata,
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+            messageDescriptor: MessageDescriptor<M, MM>,
             name: String,
             number: Int,
+            mapEntryMessageMetadata: MessageMetadata,
             keyType: ValueType<K>,
             valueType: ValueType<V>,
             value: KProperty1<M, kotlin.collections.Map<K, V>>,
             mutableValue: KProperty1<MM, MutableMap<K, V>>,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor.MutableValue<M, kotlin.collections.Map<K, V>, MutableMap<K, V>> = Map(
-            messageMetadata = messageMetadata,
-            getMessageDescriptor = messageDescriptor::get,
+        ): MutableValue<M, MM, kotlin.collections.Map<K, V>, MutableMap<K, V>> = Map(
+            messageDescriptor = messageDescriptor,
             name = name,
             number = number,
             jsonName = jsonName,
             options = options,
+            mapEntryMessageMetadata = mapEntryMessageMetadata,
             keyType = keyType,
             valueType = valueType,
             property = value,
@@ -763,15 +608,15 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         @JsExport.Ignore
         @PublicForGeneratedCode
-        public fun <M : ExtendableMessage<M>, V : Any> ofExtension(
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+        public fun <M : ExtendableMessage<M>, MM : MutableExtendableMessage<M>, V : Any> ofExtension(
+            messageDescriptor: MessageDescriptor<M, MM>,
             fullName: String,
             number: Int,
             valueType: ValueType<V>,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor<M, V?> = Extension(
-            getMessageDescriptor = messageDescriptor::get,
+        ): FieldDescriptor<M, MM, V?> = Extension(
+            messageDescriptor = messageDescriptor,
             extensionName = fullName,
             number = number,
             jsonName = jsonName,
@@ -781,15 +626,15 @@ public sealed class FieldDescriptor<M : Message, V> private constructor(
 
         @JsExport.Ignore
         @PublicForGeneratedCode
-        public fun <M : ExtendableMessage<M>, T : Any> ofRepeatedExtension(
-            messageDescriptor: KProperty0<MessageDescriptor<M>>,
+        public fun <M : ExtendableMessage<M>, MM : MutableExtendableMessage<M>, T : Any> ofRepeatedExtension(
+            messageDescriptor: MessageDescriptor<M, MM>,
             fullName: String,
             number: Int,
             valueType: ValueType<T>,
             jsonName: String,
             options: FieldOptions? = null,
-        ): FieldDescriptor.MutableValue<M, List<T>, MutableList<T>> = RepeatedExtension(
-            getMessageDescriptor = messageDescriptor::get,
+        ): MutableValue<M, MM, List<T>, MutableList<T>> = RepeatedExtension(
+            messageDescriptor = messageDescriptor,
             extensionName = fullName,
             number = number,
             jsonName = jsonName,

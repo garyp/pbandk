@@ -37,7 +37,7 @@ public sealed interface Foo : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.testpb.Foo>() {
+    public companion object : pbandk.Message.Companion<pbandk.testpb.Foo, pbandk.testpb.MutableFoo>() {
         override val defaultInstance: pbandk.testpb.Foo by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.testpb.Foo {}
         }
@@ -177,7 +177,8 @@ public sealed interface MessageWithMap : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.testpb.MessageWithMap>() {
+    public companion object :
+        pbandk.Message.Companion<pbandk.testpb.MessageWithMap, pbandk.testpb.MutableMessageWithMap>() {
         override val defaultInstance: pbandk.testpb.MessageWithMap by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.testpb.MessageWithMap {}
         }
@@ -471,7 +472,7 @@ public sealed interface Wrappers : pbandk.Message {
             )
     }
 
-    public companion object : pbandk.Message.Companion<pbandk.testpb.Wrappers>() {
+    public companion object : pbandk.Message.Companion<pbandk.testpb.Wrappers, pbandk.testpb.MutableWrappers>() {
         override val defaultInstance: pbandk.testpb.Wrappers by lazy(LazyThreadSafetyMode.PUBLICATION) {
             pbandk.testpb.Wrappers {}
         }
