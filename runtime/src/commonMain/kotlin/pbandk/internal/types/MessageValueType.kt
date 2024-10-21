@@ -2,6 +2,7 @@ package pbandk.internal.types
 
 import pbandk.FieldDescriptor
 import pbandk.FieldDescriptorSet
+import pbandk.FieldMetadata
 import pbandk.InvalidProtocolBufferException
 import pbandk.json.JsonFieldValueEncoder
 import pbandk.MessageDescriptor
@@ -12,6 +13,7 @@ import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
+import pbandk.internal.ProtoVisitor
 import pbandk.internal.binary.BinaryFieldDecoder
 import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.json.JsonFieldDecoder
@@ -58,6 +60,10 @@ public abstract class TranslatingMessageValueType<T : Any, M : Any>(
 ) : MessageValueType<T, M>() {
     protected abstract fun toProtobufType(t: T): M
     protected abstract fun fromProtobufType(m: M): T
+
+    override fun visitValue(fieldMetadata: FieldMetadata, value: T, visitor: ProtoVisitor) {
+        visitor.visitMessageValue(fieldMetadata, toProtobufType(value), descriptor)
+    }
 
     override val descriptor: MessageDescriptor<M, *> by delegate::descriptor
 
@@ -124,6 +130,10 @@ public open class PbandkMessageValueType<M : Any, MM : Any>(
     override val descriptor: MessageDescriptor<M, MM>,
     internal val encoding: MessageEncoding = MessageEncoding.LENGTH_PREFIXED,
 ) : MessageValueType<M, M>() {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: M, visitor: ProtoVisitor) {
+        visitor.visitMessageValue(fieldMetadata, value, descriptor)
+    }
+
     override val defaultValue: M get() = descriptor.defaultInstance
 
     override fun isDefaultValue(value: M): Boolean = false

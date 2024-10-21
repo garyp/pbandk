@@ -1,16 +1,22 @@
 package pbandk.internal.types.primitive
 
+import pbandk.FieldMetadata
 import pbandk.InvalidProtocolBufferException
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
 import pbandk.internal.PlatformUtil
+import pbandk.internal.ProtoVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import kotlin.String
 
 internal object String : PrimitiveValueType<String>() {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: String, visitor: ProtoVisitor) {
+        visitor.visitStringValue(fieldMetadata, value)
+    }
+
     override val defaultValue: String = ""
 
     override fun isDefaultValue(value: String) = value.isEmpty()

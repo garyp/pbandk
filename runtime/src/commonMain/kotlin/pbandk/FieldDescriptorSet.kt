@@ -8,4 +8,13 @@ public class FieldDescriptorSet<M : Any, MM : Any>(
 
     public operator fun get(fieldName: String): FieldDescriptor<M, MM, out Any?>? =
         fields.firstOrNull { it.name == fieldName }
+
+    internal val metadataSet: FieldMetadataSet = FieldMetadataSet(fields.map { it.metadata })
+}
+
+public class FieldMetadataSet(
+    private val fields: Collection<FieldMetadata>
+) : Collection<FieldMetadata> by fields {
+    public operator fun get(fieldNumber: Int): FieldMetadata? = fields.firstOrNull { it.number == fieldNumber }
+    public operator fun get(fieldName: String): FieldMetadata? = fields.firstOrNull { it.name == fieldName }
 }

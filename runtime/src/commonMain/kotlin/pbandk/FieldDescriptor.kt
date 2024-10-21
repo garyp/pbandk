@@ -2,6 +2,7 @@ package pbandk
 
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.WireType
+import pbandk.internal.ProtoVisitor
 import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.json.JsonFieldEncoder
 import pbandk.internal.types.FieldType
@@ -195,6 +196,11 @@ public sealed class FieldDescriptor<M : Any, MM : Any, V> private constructor(
         if (newValue !== value) {
             setValue(destination, newValue)
         }
+    }
+
+    internal open fun visitField(message: M, visitor: ProtoVisitor) {
+        val value = getValue(message)
+        return fieldType.visitField(metadata, value, visitor)
     }
 
     internal fun binarySize(message: M): Int {

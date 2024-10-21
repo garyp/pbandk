@@ -13,6 +13,7 @@ import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.binary.Tag
 import pbandk.binary.WireValue
 import pbandk.binary.tryDecodeField
+import pbandk.internal.ProtoVisitor
 import pbandk.internal.json.JsonFieldEncoder
 import pbandk.internal.types.primitive.Enum
 import pbandk.json.JsonConfig
@@ -33,6 +34,8 @@ internal sealed class FieldType<KotlinType> {
      */
     @get:Throws(UnsupportedOperationException::class)
     abstract val defaultValue: KotlinType
+
+    abstract fun visitField(metadata: FieldMetadata, value: KotlinType, visitor: ProtoVisitor)
 
     abstract fun allowsBinaryWireType(wireType: WireType): Boolean
     abstract fun binarySize(metadata: FieldMetadata, value: KotlinType): Int
@@ -67,6 +70,10 @@ internal sealed class FieldType<KotlinType> {
         override fun isDefaultValue(value: T) = valueType.isDefaultValue(value)
 
         override val defaultValue: T get() = valueType.defaultValue
+
+        override fun visitField(metadata: FieldMetadata, value: T, visitor: ProtoVisitor) {
+            TODO("Not yet implemented")
+        }
 
         override fun allowsBinaryWireType(wireType: WireType): Boolean {
             return valueType.binaryWireType == wireType
@@ -124,6 +131,20 @@ internal sealed class FieldType<KotlinType> {
         override fun isDefaultValue(value: T?) = value == null
 
         override val defaultValue: T? get() = null
+
+        override fun visitField(metadata: FieldMetadata, value: T?, visitor: ProtoVisitor) {
+            when {
+                value == null -> return
+                value is Message.Enum && value.value == null -> return
+                else -> {
+                    valueType.visitValue(, value, visitor)
+                }
+
+                else -> encoder.encodeField(metadata.number, valueType.binaryWireType) { valueEncoder ->
+                    valueType.encodeToBinary(value, valueEncoder)
+                }
+            }
+        }
 
         override fun allowsBinaryWireType(wireType: WireType): Boolean {
             return valueType.binaryWireType == wireType

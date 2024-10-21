@@ -1,14 +1,25 @@
 package pbandk.internal.types.primitive
 
+import pbandk.FieldMetadata
 import pbandk.InvalidProtocolBufferException
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
+import pbandk.internal.ProtoVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
+import pbandk.types.IntValueType
 
-internal object UInt32 : PrimitiveValueType<Int>() {
+internal object UInt32 : PrimitiveValueType<Int>(), IntValueType {
+    override fun visitIntValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoVisitor) {
+        visitor.visitUInt32Value(fieldMetadata, value.toUInt())
+    }
+
+    override fun visitValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoVisitor) {
+        visitIntValue(fieldMetadata, value, visitor)
+    }
+
     override val defaultValue: Int = 0
 
     override fun isDefaultValue(value: Int) = value == 0

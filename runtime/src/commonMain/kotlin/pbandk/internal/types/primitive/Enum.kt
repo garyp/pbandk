@@ -1,16 +1,22 @@
 package pbandk.internal.types.primitive
 
+import pbandk.FieldMetadata
 import pbandk.InvalidProtocolBufferException
 import pbandk.Message
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
+import pbandk.internal.ProtoVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import pbandk.wkt.NullValue
 
 internal class Enum<E : Message.Enum>(val enumCompanion: Message.Enum.Companion<E>) : PrimitiveValueType<E>() {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: E, visitor: ProtoVisitor) {
+        visitor.visitEnumValue(fieldMetadata, value, enumCompanion.descriptor)
+    }
+
     override val defaultValue: E get() = enumCompanion.fromValue(0)
 
     override fun isDefaultValue(value: E) = value.value == 0
