@@ -3,11 +3,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 
 plugins {
-    kotlin("jvm")
+    alias(libs.plugins.kotlin.jvm)
     application
     `maven-publish`
     signing
-    id("org.springframework.boot")
+    alias(libs.plugins.spring.boot)
 }
 
 description = "Kotlin code generator for Protocol Buffers. This executable runs as a protoc plugin."
@@ -22,10 +22,10 @@ dependencies {
 }
 
 tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(Versions.jvmTarget))
+    compilerOptions.jvmTarget.set(libs.versions.jvm.target.map { JvmTarget.fromTarget(it) })
 }
 tasks.withType<JavaCompile> {
-    targetCompatibility = Versions.jvmTarget
+    targetCompatibility = libs.versions.jvm.target.get()
 }
 
 val bootJar by tasks.getting(BootJar::class) {

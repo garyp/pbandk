@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("multiplatform")
+    alias(libs.plugins.kotlin.multiplatform)
 }
 
 kotlin {
@@ -53,8 +53,8 @@ kotlin {
         commonMain {
             dependencies {
                 implementation(project(":pbandk-runtime"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.kotlinCoroutines}")
-                implementation("org.jetbrains.kotlinx:kotlinx-io-core:${Versions.kotlinIo}")
+                implementation(libs.kotlinx.coroutines)
+                implementation(libs.kotlinx.io)
             }
         }
 
@@ -67,10 +67,10 @@ kotlin {
 }
 
 tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(Versions.jvmTarget))
+    compilerOptions.jvmTarget.set(libs.versions.jvm.target.map { JvmTarget.fromTarget(it) })
 }
 tasks.withType<JavaCompile> {
-    targetCompatibility = Versions.jvmTarget
+    targetCompatibility = libs.versions.jvm.target.get()
 }
 
 tasks {

@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm")
+    alias(libs.plugins.kotlin.jvm)
     `maven-publish`
     signing
 }
@@ -28,10 +28,10 @@ java {
 }
 
 tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(Versions.jvmTarget))
+    compilerOptions.jvmTarget.set(libs.versions.jvm.target.map { JvmTarget.fromTarget(it) })
 }
 tasks.withType<JavaCompile> {
-    targetCompatibility = Versions.jvmTarget
+    targetCompatibility = libs.versions.jvm.target.get()
 }
 
 publishing {

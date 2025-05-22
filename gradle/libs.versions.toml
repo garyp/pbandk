@@ -1,0 +1,31 @@
+[versions]
+android-min-sdk = "21"
+android-target-sdk = "34"
+jvm-target = "1.8"
+kotlinx-coroutines = "1.9.0-RC.2"
+kotlinx-io = "0.5.3"
+kotlinx-serialization = "1.7.2"
+plugin-android= "8.5.0"
+plugin-binary-compatibility-validator= "0.16.3"
+plugin-kotlin = "2.0.20"
+plugin-osdetector = "1.7.3"
+plugin-spring-boot= "2.4.5"
+protobuf-compiler = "4.28.0"
+protobuf-java = "4.28.0"
+robolectric = "11-robolectric-6757853"
+
+[libraries]
+kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-io = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+protobuf-compiler = { module = "com.google.protobuf:protoc", version.ref = "protobuf-compiler" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf-java" }
+robolectric-android-all = { module = "org.robolectric:android-all", version.ref = "robolectric" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "plugin-android" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "plugin-kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "plugin-kotlin" }
+kotlinx-binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "plugin-binary-compatibility-validator" }
+osdetector = { id = "com.google.osdetector", version.ref = "plugin-osdetector" }
+spring-boot = { id = "org.springframework.boot", version.ref = "plugin-spring-boot" }

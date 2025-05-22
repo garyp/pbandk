@@ -4,12 +4,13 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 // Top-level build configuration
 
 plugins {
-    kotlin("multiplatform") version Versions.kotlin apply false
-    id("com.android.library") version Versions.androidGradlePlugin apply false
-    id("org.springframework.boot") version Versions.springBootGradlePlugin apply false
-    id("org.jetbrains.kotlinx.binary-compatibility-validator") version Versions.binaryCompatibilityValidatorGradlePlugin apply false
+    alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.kotlinx.binary.compatibility.validator) apply false
 
-    id("com.google.osdetector") version Versions.osDetectorGradlePlugin
+    alias(libs.plugins.osdetector)
 }
 
 val sonatypeApiUser = providers.gradlePropertyOrEnvironmentVariable("sonatypeApiUser")
@@ -25,7 +26,6 @@ if (signingKeyAsciiArmored.isPresent) {
     subprojects {
         plugins.withType<SigningPlugin> {
             configure<SigningExtension> {
-                @Suppress("UnstableApiUsage")
                 useInMemoryPgpKeys(signingKeyAsciiArmored.get(), "")
                 sign(extensions.getByType<PublishingExtension>().publications)
             }
@@ -44,14 +44,13 @@ val wellKnownTypes by configurations.creating {
 }
 
 dependencies {
-    downloadProtoc(
-        group = "com.google.protobuf",
-        name = "protoc",
-        version = Versions.protoc,
-        classifier = osdetector.classifier,
-        ext = "exe"
-    )
-    wellKnownTypes("com.google.protobuf:protobuf-java:${Versions.protobufJava}")
+    downloadProtoc(libs.protobuf.compiler) {
+        artifact {
+            classifier = osdetector.classifier
+            extension = "exe"
+        }
+    }
+    wellKnownTypes(libs.protobuf.java)
 }
 
 val extractWellKnownTypeProtos by tasks.registering(Sync::class) {

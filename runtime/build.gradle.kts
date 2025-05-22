@@ -4,11 +4,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("multiplatform")
-    id("com.android.library")
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.library)
     `maven-publish`
     signing
-    id("org.jetbrains.kotlinx.binary-compatibility-validator")
+    alias(libs.plugins.kotlinx.binary.compatibility.validator)
 }
 
 description = "Kotlin runtime library for Protocol Buffers. It is built to work across multiple Kotlin platforms."
@@ -83,7 +83,7 @@ kotlin {
 
         commonMain {
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:${Versions.kotlinSerialization}")
+                implementation(libs.kotlinx.serialization)
             }
         }
 
@@ -103,7 +103,7 @@ kotlin {
 
         val androidUnitTest by getting {
             dependencies {
-                runtimeOnly("org.robolectric:android-all:${Versions.robolectric}")
+                runtimeOnly(libs.robolectric.android.all)
             }
         }
 
@@ -119,23 +119,23 @@ kotlin {
 android {
     namespace = "pro.streem.pbandk"
 
-    compileSdk = Versions.androidTargetSdk
+    compileSdk = libs.versions.android.target.sdk.get().toInt()
     defaultConfig {
-        minSdk = Versions.androidMinSdk
+        minSdk = libs.versions.android.min.sdk.get().toInt()
     }
     testOptions {
-        targetSdk = Versions.androidTargetSdk
+        targetSdk = libs.versions.android.target.sdk.get().toInt()
     }
     lint {
-        targetSdk = Versions.androidTargetSdk
+        targetSdk = libs.versions.android.target.sdk.get().toInt()
     }
 }
 
 tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(Versions.jvmTarget))
+    compilerOptions.jvmTarget.set(libs.versions.jvm.target.map { JvmTarget.fromTarget(it) })
 }
 tasks.withType<JavaCompile> {
-    targetCompatibility = Versions.jvmTarget
+    targetCompatibility = libs.versions.jvm.target.get()
 }
 
 val extractWellKnownTypeProtos = rootProject.tasks.named<Sync>("extractWellKnownTypeProtos")

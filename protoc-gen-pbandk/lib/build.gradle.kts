@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("multiplatform")
+    alias(libs.plugins.kotlin.multiplatform)
     `maven-publish`
     signing
 }
@@ -29,7 +29,7 @@ kotlin {
 
         jvmMain {
             dependencies {
-                implementation("com.google.protobuf:protobuf-java:${Versions.protobufJava}")
+                implementation(libs.protobuf.java)
             }
         }
 
@@ -43,10 +43,10 @@ kotlin {
 }
 
 tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(Versions.jvmTarget))
+    compilerOptions.jvmTarget.set(libs.versions.jvm.target.map { JvmTarget.fromTarget(it) })
 }
 tasks.withType<JavaCompile> {
-    targetCompatibility = Versions.jvmTarget
+    targetCompatibility = libs.versions.jvm.target.get()
 }
 
 tasks {

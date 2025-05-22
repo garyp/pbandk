@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("multiplatform")
+    alias(libs.plugins.kotlin.multiplatform)
 }
 
 kotlin {
@@ -64,18 +64,18 @@ kotlin {
 
         jvmMain {
             dependencies {
-                api("com.google.protobuf:protobuf-java:${Versions.protobufJava}")
+                api(libs.protobuf.java)
             }
         }
     }
 }
 
 tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(Versions.jvmTarget))
+    compilerOptions.jvmTarget.set(libs.versions.jvm.target.map { JvmTarget.fromTarget(it) })
 }
 tasks.withType<JavaCompile> {
-    sourceCompatibility = Versions.jvmTarget
-    targetCompatibility = Versions.jvmTarget
+    sourceCompatibility = libs.versions.jvm.target.get()
+    targetCompatibility = libs.versions.jvm.target.get()
 }
 
 tasks {
