@@ -32,7 +32,7 @@ public sealed class FieldSchema<M : Any, MM : Any, V> protected constructor(
         abstract val valueType: ValueType<V & Any>
     }
 
-    internal sealed class ExplicitPresence<M : Any, MM : Any, V : Any>(
+    internal open class ExplicitPresence<M : Any, MM : Any, V : Any>(
 //        messageSchema: MessageSchema<M>,
         override val descriptor: FieldDescriptor.Standard,
         override val valueType: ValueType<V>,

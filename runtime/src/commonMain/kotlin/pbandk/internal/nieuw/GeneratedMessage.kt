@@ -11,10 +11,10 @@ public constructor() : Message {
     @Suppress("UNCHECKED_CAST")
     private inline fun thisAsM(): M = this as M
 
-    abstract override val companion: Message.Companion<M>
+//    abstract override val companion: Message.Companion<M>
 
     override val protoSize: Int by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        computeBinarySize(companion.schema, thisAsM())
+        computeBinarySize(companion.schema, this)
     }
 
     override fun plus(other: Message?): M {
@@ -62,11 +62,12 @@ public class Foo private constructor(
             valueFn = Foo::b,
             setValueFn = MutableFoo::b::set,
         )
-        val c = FieldSchema.ExplicitPresence(
+        val c = FieldSchema.Message(
             descriptor = FieldDescriptor.Standard(descriptor, "c", 3, "c", false),
-            valueType = Foo.schema,
+            schema = Foo.schema,
             valueFn = Foo::c,
             setValueFn = MutableFoo::c::set,
+            mutableValueFn = MutableFoo::c,
         )
         val d = FieldSchema.ExplicitPresence(
             descriptor = FieldDescriptor.Standard(descriptor, "d", 4, "d", false),
@@ -106,7 +107,7 @@ public class Foo private constructor(
     }
 }
 
-public class MutableFoo internal constructor(): MutableMessage {
+public class MutableFoo internal constructor() : MutableMessage {
     public var a: Int = 0
     public var b: String = ""
     public var c: Foo? = null

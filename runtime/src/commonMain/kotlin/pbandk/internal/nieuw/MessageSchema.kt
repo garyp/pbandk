@@ -158,6 +158,22 @@ private class ExtendableMessageSchema<M : GeneratedExtendableMessage<M>, MM : Mu
         }
     )
 
+    private fun binaryMerge(value1: ExtensionValue<M>, value2: ExtensionValue<M>): ExtensionValue.Binary<M> {
+        val value1Binary = when (value1) {
+            is ExtensionValue.Binary<M> -> value1.value
+            is ExtensionValue.SingularDecoded<M, *> -> value1.encodeToBinary()
+            is ExtensionValue.RepeatedDecoded<M, *> -> value1.encodeToBinary()
+            is ExtensionValue.Json<M> -> TODO()
+        }
+        val value2Binary = when (value2) {
+            is ExtensionValue.Binary<M> -> value2.value
+            is ExtensionValue.SingularDecoded<M, *> -> value2.encodeToBinary()
+            is ExtensionValue.RepeatedDecoded<M, *> -> value2.encodeToBinary()
+            is ExtensionValue.Json<M> -> TODO()
+        }
+        return ExtensionValue.Binary(value1Binary + value2Binary)
+    }
+
     override fun merge(destinationMessage: MM, message: M, other: M) {
         super.merge(destinationMessage, message, other)
         with(destinationMessage.extensionFields) {
@@ -168,34 +184,25 @@ private class ExtendableMessageSchema<M : GeneratedExtendableMessage<M>, MM : Mu
                         is ExtensionValue.SingularDecoded<M, *> -> {
                             when (otherField) {
                                 is ExtensionValue.SingularDecoded<M, *> -> {
-                                    mergeMessageField(messageField.schema, otherField.schema, messageField.value, otherField.value)
                                     if (messageField.schema.valueType == otherField.schema.valueType) {
-                                        ExtensionValue.SingularDecoded(
+                                        mergeMessageField(
                                             messageField.schema,
-                                            if (messageField.schema.valueType is MessageSchema<*>) {
-                                                messageField.schema.valueType.merge(messageField.value, otherField.value)
-                                            } else {
-                                                otherField.value
-                                            }
+                                            otherField.schema,
+                                            messageField.value,
+                                            otherField.value
                                         )
                                     } else {
-                                        val existingValue = messageField.encodeToBinary()
-                                        val otherValue = otherField.encodeToBinary()
-                                        ExtensionValue.Binary(existingValue + otherValue)
+                                        binaryMerge(messageField, otherField)
                                     }
                                 }
-                                is ExtensionValue.RepeatedDecoded<M, *> -> {
-                                    val existingValue = messageField.encodeToBinary()
-                                    val otherValue = otherField.encodeToBinary()
-                                    ExtensionValue.Binary(existingValue + otherValue)
-                                }
-                                is ExtensionValue.Binary<M> -> {
-                                    val existingValue = messageField.encodeToBinary()
-                                    ExtensionValue.Binary(existingValue + otherField.value)
-                                }
+
+                                is ExtensionValue.RepeatedDecoded<M, *> -> binaryMerge(messageField, otherField)
+                                is ExtensionValue.Binary<M> -> binaryMerge(messageField, otherField)
+
                                 is ExtensionValue.Json<M> -> TODO()
                             }
                         }
+
                         is ExtensionValue.RepeatedDecoded<M, *> -> {
                             when (otherField) {
                                 is ExtensionValue.RepeatedDecoded<M, *> -> {
@@ -205,37 +212,18 @@ private class ExtendableMessageSchema<M : GeneratedExtendableMessage<M>, MM : Mu
                                             messageField.value + otherField.value
                                         )
                                     } else {
-                                        val existingValue = messageField.encodeToBinary()
-                                        val otherValue = otherField.encodeToBinary()
-                                        ExtensionValue.Binary(existingValue + otherValue)
+                                        binaryMerge(messageField, otherField)
                                     }
                                 }
-                                is ExtensionValue.SingularDecoded<M, *> -> {
-                                    val existingValue = messageField.encodeToBinary()
-                                    val otherValue = otherField.encodeToBinary()
-                                    ExtensionValue.Binary(existingValue + otherValue)
-                                }
-                                is ExtensionValue.Binary<M> -> {
-                                    val existingValue = messageField.encodeToBinary()
-                                    ExtensionValue.Binary(existingValue + otherField.value)
-                                }
+
+                                is ExtensionValue.SingularDecoded<M, *> -> binaryMerge(messageField, otherField)
+                                is ExtensionValue.Binary<M> -> binaryMerge(messageField, otherField)
                                 is ExtensionValue.Json<M> -> TODO()
                             }
                         }
-                        is ExtensionValue.Binary<M> -> {
-                            when (otherField) {
-                                is ExtensionValue.SingularDecoded<M, *> -> {
-                                    val otherValue = otherField.encodeToBinary()
-                                    ExtensionValue.Binary(messageField.value + otherValue)
-                                }
-                                is ExtensionValue.RepeatedDecoded<M, *> ->  {
-                                    val otherValue = otherField.encodeToBinary()
-                                    ExtensionValue.Binary(messageField.value + otherValue)
-                                }
-                                is ExtensionValue.Binary<M> -> ExtensionValue.Binary(messageField.value + otherField.value)
-                                is ExtensionValue.Json<M> -> TODO()
-                            }
-                        }
+
+                        is ExtensionValue.Binary<M> -> binaryMerge(messageField, otherField)
+
                         is ExtensionValue.Json<M> -> {
                             when (otherField) {
                                 is ExtensionValue.SingularDecoded<M, *> -> TODO()
