@@ -24,7 +24,7 @@ private const val DOUBLE_MAX_NEGATIVE = -2.22507e-308
 private val NUMBER_TRAILING_ZEROES = """\.0+$""".toRegex()
 private val NUMBER_SCIENTIFIC_NOTATION = """-?\d+(\.\d+?)?0*[eE](\d+)$""".toRegex()
 
-private inline fun <T> String.decodeAsIntegerType(toIntegerType: String.() -> T): T = try {
+internal inline fun <T> String.decodeAsIntegerType(toIntegerType: String.() -> T): T = try {
     // The protobuf conformance test suite is pretty strict about requiring parsers to reject parsable numeric
     // values that don't conform to the spec.
     when (getOrNull(0)) {

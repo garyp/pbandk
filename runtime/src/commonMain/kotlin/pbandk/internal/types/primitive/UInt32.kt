@@ -6,17 +6,17 @@ import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import pbandk.types.IntValueType
 
 internal object UInt32 : PrimitiveValueType<Int>(), IntValueType {
-    override fun visitIntValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoVisitor) {
+    override fun visitIntValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoFieldVisitor) {
         visitor.visitUInt32Value(fieldMetadata, value.toUInt())
     }
 
-    override fun visitValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoVisitor) {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoFieldVisitor) {
         visitIntValue(fieldMetadata, value, visitor)
     }
 

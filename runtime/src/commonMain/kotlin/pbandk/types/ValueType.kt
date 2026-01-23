@@ -5,8 +5,8 @@ import pbandk.PublicForGeneratedCode
 import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
-import pbandk.internal.ProtoDecoder
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoDecoder
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 
@@ -33,27 +33,27 @@ public interface ValueType<KotlinType : Any> {
     public fun decodeFromJson(decoder: JsonFieldValueDecoder): KotlinType
     public fun decodeFromJsonMapKey(decoder: JsonFieldValueDecoder.String): KotlinType
 
-    public fun visitValue(fieldMetadata: FieldMetadata, value: KotlinType, visitor: ProtoVisitor)
+    public fun visitValue(fieldMetadata: FieldMetadata, value: KotlinType, visitor: ProtoFieldVisitor)
     public fun decodeValue(fieldMetadata: FieldMetadata, decoder: ProtoDecoder): KotlinType
 }
 
 public interface IntValueType : ValueType<Int> {
-    public fun visitIntValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoVisitor)
+    public fun visitIntValue(fieldMetadata: FieldMetadata, value: Int, visitor: ProtoFieldVisitor)
     public fun decodeIntValue(fieldMetadata: FieldMetadata, decoder: ProtoDecoder): Int
 }
 
 public interface UIntValueType : ValueType<UInt> {
-    public fun visitUIntValue(fieldMetadata: FieldMetadata, value: UInt, visitor: ProtoVisitor)
+    public fun visitUIntValue(fieldMetadata: FieldMetadata, value: UInt, visitor: ProtoFieldVisitor)
 }
 
 public interface LongValueType : ValueType<Long> {
-    public fun visitLongValue(fieldMetadata: FieldMetadata, value: Long, visitor: ProtoVisitor)
+    public fun visitLongValue(fieldMetadata: FieldMetadata, value: Long, visitor: ProtoFieldVisitor)
 }
 
 public interface ULongValueType : ValueType<ULong> {
-    public fun visitULongValue(fieldMetadata: FieldMetadata, value: ULong, visitor: ProtoVisitor)
+    public fun visitULongValue(fieldMetadata: FieldMetadata, value: ULong, visitor: ProtoFieldVisitor)
 }
 
 public interface BooleanValueType : ValueType<Boolean> {
-    public fun visitBooleanValue(fieldMetadata: FieldMetadata, value: Boolean, visitor: ProtoVisitor)
+    public fun visitBooleanValue(fieldMetadata: FieldMetadata, value: Boolean, visitor: ProtoFieldVisitor)
 }

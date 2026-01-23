@@ -7,13 +7,13 @@ import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import pbandk.wkt.NullValue
 
 internal class Enum<E : Message.Enum>(val enumCompanion: Message.Enum.Companion<E>) : PrimitiveValueType<E>() {
-    override fun visitValue(fieldMetadata: FieldMetadata, value: E, visitor: ProtoVisitor) {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: E, visitor: ProtoFieldVisitor) {
         visitor.visitEnumValue(fieldMetadata, value, enumCompanion.descriptor)
     }
 

@@ -7,13 +7,13 @@ import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
 import pbandk.internal.PlatformUtil
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 import kotlin.String
 
 internal object String : PrimitiveValueType<String>() {
-    override fun visitValue(fieldMetadata: FieldMetadata, value: String, visitor: ProtoVisitor) {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: String, visitor: ProtoFieldVisitor) {
         visitor.visitStringValue(fieldMetadata, value)
     }
 

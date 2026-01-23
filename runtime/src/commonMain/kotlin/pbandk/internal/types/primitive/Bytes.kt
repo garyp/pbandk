@@ -8,12 +8,12 @@ import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
 import pbandk.internal.PlatformUtil
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.json.JsonFieldValueDecoder
 import pbandk.json.JsonFieldValueEncoder
 
 internal object Bytes : PrimitiveValueType<ByteArr>() {
-    override fun visitValue(fieldMetadata: FieldMetadata, value: ByteArr, visitor: ProtoVisitor) {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: ByteArr, visitor: ProtoFieldVisitor) {
         visitor.visitBytesValue(fieldMetadata, value)
     }
 

@@ -13,7 +13,7 @@ import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.binary.Tag
 import pbandk.binary.WireValue
 import pbandk.binary.tryDecodeField
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.internal.json.JsonFieldEncoder
 import pbandk.internal.types.primitive.Enum
 import pbandk.json.JsonConfig
@@ -35,7 +35,7 @@ internal sealed class FieldType<KotlinType> {
     @get:Throws(UnsupportedOperationException::class)
     abstract val defaultValue: KotlinType
 
-    abstract fun visitField(metadata: FieldMetadata, value: KotlinType, visitor: ProtoVisitor)
+    abstract fun visitField(metadata: FieldMetadata, value: KotlinType, visitor: ProtoFieldVisitor)
 
     abstract fun allowsBinaryWireType(wireType: WireType): Boolean
     abstract fun binarySize(metadata: FieldMetadata, value: KotlinType): Int
@@ -71,7 +71,7 @@ internal sealed class FieldType<KotlinType> {
 
         override val defaultValue: T get() = valueType.defaultValue
 
-        override fun visitField(metadata: FieldMetadata, value: T, visitor: ProtoVisitor) {
+        override fun visitField(metadata: FieldMetadata, value: T, visitor: ProtoFieldVisitor) {
             TODO("Not yet implemented")
         }
 
@@ -132,7 +132,7 @@ internal sealed class FieldType<KotlinType> {
 
         override val defaultValue: T? get() = null
 
-        override fun visitField(metadata: FieldMetadata, value: T?, visitor: ProtoVisitor) {
+        override fun visitField(metadata: FieldMetadata, value: T?, visitor: ProtoFieldVisitor) {
             when {
                 value == null -> return
                 value is Message.Enum && value.value == null -> return

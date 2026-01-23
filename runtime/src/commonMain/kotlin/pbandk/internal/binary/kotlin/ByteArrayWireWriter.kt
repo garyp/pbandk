@@ -35,6 +35,13 @@ internal class ByteArrayWireWriter private constructor(private val byteArray: By
     override var totalBytesWritten = 0
         private set
 
+    override fun write(maxSize: Int, block: (buffer: ByteArray, offset: Int) -> Int) {
+        require(maxSize <= byteArray.size - totalBytesWritten) {
+            "Tried to write $maxSize bytes, but the writer's capacity is only ${byteArray.size - totalBytesWritten} bytes"
+        }
+        totalBytesWritten += block(byteArray, totalBytesWritten)
+    }
+
     override fun write(bytes: ByteArray, offset: Int, length: Int) {
         bytes.copyInto(byteArray, totalBytesWritten, offset, offset + length)
         totalBytesWritten += length

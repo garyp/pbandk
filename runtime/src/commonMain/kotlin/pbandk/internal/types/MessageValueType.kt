@@ -13,7 +13,7 @@ import pbandk.binary.BinaryFieldValueDecoder
 import pbandk.binary.BinaryFieldValueEncoder
 import pbandk.binary.WireType
 import pbandk.binary.WireValue
-import pbandk.internal.ProtoVisitor
+import pbandk.internal.nieuw.ProtoFieldVisitor
 import pbandk.internal.binary.BinaryFieldDecoder
 import pbandk.internal.binary.BinaryFieldEncoder
 import pbandk.internal.json.JsonFieldDecoder
@@ -61,7 +61,7 @@ public abstract class TranslatingMessageValueType<T : Any, M : Any>(
     protected abstract fun toProtobufType(t: T): M
     protected abstract fun fromProtobufType(m: M): T
 
-    override fun visitValue(fieldMetadata: FieldMetadata, value: T, visitor: ProtoVisitor) {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: T, visitor: ProtoFieldVisitor) {
         visitor.visitMessageValue(fieldMetadata, toProtobufType(value), descriptor)
     }
 
@@ -130,7 +130,7 @@ public open class PbandkMessageValueType<M : Any, MM : Any>(
     override val descriptor: MessageDescriptor<M, MM>,
     internal val encoding: MessageEncoding = MessageEncoding.LENGTH_PREFIXED,
 ) : MessageValueType<M, M>() {
-    override fun visitValue(fieldMetadata: FieldMetadata, value: M, visitor: ProtoVisitor) {
+    override fun visitValue(fieldMetadata: FieldMetadata, value: M, visitor: ProtoFieldVisitor) {
         visitor.visitMessageValue(fieldMetadata, value, descriptor)
     }
 

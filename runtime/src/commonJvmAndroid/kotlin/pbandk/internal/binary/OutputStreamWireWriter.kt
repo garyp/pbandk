@@ -69,6 +69,20 @@ internal class OutputStreamWireWriter(
         totalBytesWritten += 1
     }
 
+    override fun write(maxSize: Int, block: (buffer: ByteArray, offset: Int) -> Int) {
+        if (limit - position >= maxSize) {
+            // We have room in the buffer
+            val bytesWritten = block(buffer, position)
+            position += bytesWritten
+            totalBytesWritten += bytesWritten
+        } else {
+            // TODO: should we do something more efficient than allocating a new array every time?
+            val buffer = ByteArray(maxSize)
+            val bytesWritten = block(buffer, 0)
+            write(buffer, 0, bytesWritten)
+        }
+    }
+
     override fun write(bytes: ByteArray, offset: Int, length: Int) {
         if (limit - position >= length) {
             // We have room in the current buffer.

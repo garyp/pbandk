@@ -92,8 +92,8 @@ public class BinaryFieldValueEncoder internal constructor(
     }
 
     public companion object {
-        internal fun WireValue.Varint.encodeToBuffer(buffer: ByteArray): Int {
-            var position = 0
+        internal fun WireValue.Varint.encodeToBuffer(buffer: ByteArray, offset: Int = 0): Int {
+            var position = offset
             var valueCur = value
             while (position < MAX_VARINT_SIZE) {
                 if ((valueCur and 0x7FUL.inv()) == 0UL) {

@@ -1376,7 +1376,7 @@ public sealed interface FieldDescriptorProto : pbandk.Message {
     public sealed interface Label : pbandk.Message.Enum {
         override val descriptor: pbandk.EnumDescriptor<pbandk.wkt.FieldDescriptorProto.Label>
             get() = pbandk.wkt.FieldDescriptorProto.Label.descriptor
-
+jsoncon
         public object OPTIONAL : Label, pbandk.gen.GeneratedEnumValue<pbandk.wkt.FieldDescriptorProto.Label>(
             value = 1,
             name = "LABEL_OPTIONAL",

@@ -1,5 +1,7 @@
 package pbandk.internal.json
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.double
 import kotlin.jvm.JvmInline
@@ -69,7 +71,22 @@ internal sealed interface WireValue {
     }
 
     @JvmInline
-    value class Boolean internal constructor(internal val value: kotlin.Boolean) {
+    value class Boolean internal constructor(internal val value: JsonPrimitive) : WireValue {
+        override val wireType: JsonWireType get() = JsonWireType.Boolean
 
+    }
+
+    data object Null : WireValue {
+        override val wireType: JsonWireType get() = JsonWireType.Number
+    }
+
+    @JvmInline
+    value class Object internal constructor(internal val value: JsonObject) : WireValue {
+        override val wireType: JsonWireType get() = JsonWireType.Object
+    }
+
+    @JvmInline
+    value class Array internal constructor(internal val value: JsonArray) : WireValue {
+        override val wireType: JsonWireType get() = JsonWireType.Array
     }
 }
